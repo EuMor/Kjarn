@@ -1,0 +1,12 @@
+# Папки сборки и кэша
+out/
+build/
+.vs/
+CMakeFiles/
+CMakeCache.txt
+CMakeUserPresets.json
+
+# Файлы Visual Studio
+*.sln
+*.vcxproj*
+*.user
