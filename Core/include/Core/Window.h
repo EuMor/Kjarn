@@ -6,11 +6,12 @@ namespace Core {
 
     class Window {
     public:
-        // Изменили std::string на std::wstring
         Window(const std::wstring& title, int width, int height);
         ~Window();
 
-        void Run();
+        // Убираем старый Run() и добавляем:
+        bool ShouldClose() const;
+        void PollEvents(); // Обрабатывает сообщения Windows
 
         Window(const Window&) = delete;
         Window& operator=(const Window&) = delete;
@@ -21,6 +22,7 @@ namespace Core {
         HWND m_hwnd = nullptr;
         int  m_width;
         int  m_height;
+        bool m_shouldClose = false; // Флаг: пора ли закрывать окно
     };
 
 } // namespace Core

@@ -1,4 +1,5 @@
 #include "Core/Window.h"
+#include "Core/Input.h" // Подключаем наш Input
 #include <windows.h>
 
 namespace Core {
@@ -20,15 +21,12 @@ namespace Core {
         wc.hInstance = hInstance;
         wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
         wc.hbrBackground = nullptr;
-        wc.lpszClassName = CLASS_NAME; // Просто передаем, никаких кастов!
+        wc.lpszClassName = CLASS_NAME;
 
         RegisterClassEx(&wc);
 
         m_hwnd = CreateWindowEx(
-            0,
-            CLASS_NAME,          // Просто передаем
-            title.c_str(),       // Передаем широкую строку (wchar_t*)
-            WS_OVERLAPPEDWINDOW,
+            0, CLASS_NAME, title.c_str(), WS_OVERLAPPEDWINDOW,
             CW_USEDEFAULT, CW_USEDEFAULT, width, height,
             nullptr, nullptr, hInstance, nullptr
         );
@@ -46,22 +44,37 @@ namespace Core {
         g_windowInstance = nullptr;
     }
 
-    void Window::Run() {
+    // --- НОВЫЕ МЕТОДЫ ---
+    bool Window::ShouldClose() const {
+        return m_shouldClose;
+    }
+
+    void Window::PollEvents() {
         MSG msg = {};
-        while (GetMessage(&msg, nullptr, 0, 0)) {
+        // PeekMessage не блокирует поток, а просто забирает сообщения из очереди
+        while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_QUIT) {
+                m_shouldClose = true;
+            }
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
     }
+    // -------------------
 
     LRESULT CALLBACK Window::WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+        // Передаем ВСЕ сообщения в наш Input
+        Input::ProcessMessage(uMsg, wParam, lParam);
+
         switch (uMsg) {
         case WM_DESTROY:
+            if (g_windowInstance) g_windowInstance->m_shouldClose = true;
             PostQuitMessage(0);
             return 0;
 
         case WM_PAINT:
         {
+            
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
             RECT rc;
