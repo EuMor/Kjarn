@@ -1,35 +1,38 @@
 #include "Core/Window.h"
 #include "Core/Input.h"
-#include <iostream>
+#include "Core/Renderer.h"
+#include <windows.h> // Для функции Sleep
 
 int main() {
-    Core::Window window(L"Kjarn Engine — Input Test", 800, 600);
+    Core::Window window(L"Kjarn Engine — Render Test", 800, 600);
+    Core::Renderer renderer(window.GetNativeHandle());
 
-    // Главный игровой цикл (Game Loop)
+    // Позиция нашего "игрока"
+    float playerX = 400.0f;
+    float playerY = 300.0f;
+    float playerSpeed = 5.0f;
+
+    // Главный игровой цикл
     while (!window.ShouldClose()) {
-        // 1. Обрабатываем события Windows (мышь, клавиатура, закрытие)
         window.PollEvents();
 
-        // 2. Проверяем ввод (например, если нажата клавиша W)
-        if (Core::Input::IsKeyDown('W')) {
-            std::cout << "W is held down\n";
-        }
+        // --- 1. Логика (Обновление) ---
+        if (Core::Input::IsKeyDown('W')) playerY -= playerSpeed;
+        if (Core::Input::IsKeyDown('S')) playerY += playerSpeed;
+        if (Core::Input::IsKeyDown('A')) playerX -= playerSpeed;
+        if (Core::Input::IsKeyDown('D')) playerX += playerSpeed;
 
-        // Проверяем одиночное нажатие (сработает один раз при нажатии)
-        if (Core::Input::IsKeyPressed(VK_SPACE)) {
-            std::cout << "Space pressed once!\n";
-        }
+        // --- 2. Рендеринг (Отрисовка) ---
+        renderer.BeginFrame();
 
-        // Получаем позицию мыши
-        float mx, my;
-        Core::Input::GetMousePosition(mx, my);
-        // std::cout << "Mouse: " << mx << ", " << my << "\n"; // Осторожно, будет спамить в консоль
+        // Рисуем красный квадрат (нашего игрока)
+        renderer.DrawRect(playerX, playerY, 50.0f, 50.0f, Core::Color(200, 50, 50));
 
-        // 3. В конце кадра обновляем Input (запоминаем состояние для IsKeyPressed)
+        renderer.EndFrame();
+
+        // --- 3. Конец кадра ---
         Core::Input::Update();
-
-        // Небольшая задержка, чтобы цикл не сжирал 100% процессора (пока нет рендера)
-        Sleep(10);
+        Sleep(16); // Задержка ~16мс = ~60 FPS (чтобы не грузить процессор на 100%)
     }
 
     return 0;

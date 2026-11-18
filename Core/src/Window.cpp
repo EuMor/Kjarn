@@ -63,10 +63,12 @@ namespace Core {
     // -------------------
 
     LRESULT CALLBACK Window::WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-        // Передаем ВСЕ сообщения в наш Input
         Input::ProcessMessage(uMsg, wParam, lParam);
 
         switch (uMsg) {
+        case WM_ERASEBKGND:
+            return 1; // Говорим Windows: "Я сам всё закрашу, не вмешивайся" (убирает мерцание)
+
         case WM_DESTROY:
             if (g_windowInstance) g_windowInstance->m_shouldClose = true;
             PostQuitMessage(0);
@@ -74,28 +76,9 @@ namespace Core {
 
         case WM_PAINT:
         {
-            
+            // Теперь мы рисуем в цикле main.cpp, поэтому здесь просто валидируем область
             PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            RECT rc;
-            GetClientRect(hWnd, &rc);
-            int width = rc.right - rc.left;
-            int height = rc.bottom - rc.top;
-
-            HDC memDC = CreateCompatibleDC(hdc);
-            HBITMAP memBitmap = CreateCompatibleBitmap(hdc, width, height);
-            HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
-
-            HBRUSH bgBrush = CreateSolidBrush(RGB(40, 44, 52));
-            FillRect(memDC, &rc, bgBrush);
-            DeleteObject(bgBrush);
-
-            BitBlt(hdc, 0, 0, width, height, memDC, 0, 0, SRCCOPY);
-
-            SelectObject(memDC, oldBitmap);
-            DeleteObject(memBitmap);
-            DeleteDC(memDC);
-
+            BeginPaint(hWnd, &ps);
             EndPaint(hWnd, &ps);
             return 0;
         }

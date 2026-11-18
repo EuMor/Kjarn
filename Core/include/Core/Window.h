@@ -6,6 +6,7 @@ namespace Core {
 
     class Window {
     public:
+        HWND GetNativeHandle() const { return m_hwnd; }
         Window(const std::wstring& title, int width, int height);
         ~Window();
 
