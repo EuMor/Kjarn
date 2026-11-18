@@ -41,9 +41,17 @@ namespace Core {
         DeleteObject(bgBrush);
     }
 
-    void Renderer::DrawRect(float x, float y, float width, float height, Color color) {
+    void Renderer::DrawRect(const Camera& camera, float x, float y, float width, float height, Color color) {
+        float screenX, screenY;
+        // Пересчитываем позицию
+        camera.WorldToScreen(x, y, (float)m_width, (float)m_height, screenX, screenY);
+
+        // Пересчитываем размеры с учетом зума
+        float screenW = width * camera.zoom;
+        float screenH = height * camera.zoom;
+
         HBRUSH brush = CreateSolidBrush(RGB(color.r, color.g, color.b));
-        RECT rect = { (int)x, (int)y, (int)(x + width), (int)(y + height) };
+        RECT rect = { (int)screenX, (int)screenY, (int)(screenX + screenW), (int)(screenY + screenH) };
         FillRect(m_memDC, &rect, brush);
         DeleteObject(brush);
     }

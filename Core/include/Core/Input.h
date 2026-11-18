@@ -19,6 +19,8 @@ namespace Core {
         // Внутренняя функция для обработки сообщений Windows
         static void ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam);
 
+        static int GetMouseWheelDelta();
+
     private:
         static bool s_Keys[256];      // Текущее состояние клавиш
         static bool s_PrevKeys[256];  // Состояние клавиш в прошлом кадре

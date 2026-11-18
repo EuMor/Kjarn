@@ -1,6 +1,7 @@
 #pragma once
 #include <windows.h>
 #include "Core/Color.h"
+#include "Core/Camera.h"
 
 namespace Core {
 
@@ -16,7 +17,12 @@ namespace Core {
         void EndFrame();
 
         // Рисует прямоугольник
-        void DrawRect(float x, float y, float width, float height, Color color);
+        //void DrawRect(float x, float y, float width, float height, Color color);
+        void DrawRect(const Camera& camera, float x, float y, float width, float height, Color color);
+
+        // Геттеры для размеров экрана (нужны для камеры)
+        int GetWidth() const { return m_width; }
+        int GetHeight() const { return m_height; }
 
     private:
         HWND m_hwnd;

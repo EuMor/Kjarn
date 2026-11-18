@@ -8,11 +8,15 @@ namespace Core {
     bool Input::s_PrevKeys[256] = { false };
     float Input::s_MouseX = 0.0f;
     float Input::s_MouseY = 0.0f;
+    static int s_MouseWheelDelta = 0;
 
     void Input::Update() {
         // Копируем текущее состояние в предыдущее
         std::memcpy(s_PrevKeys, s_Keys, sizeof(s_Keys));
+        s_MouseWheelDelta = 0;// Сбрасываем колесико в конце кадра
     }
+
+    int Input::GetMouseWheelDelta() { return s_MouseWheelDelta; }
 
     bool Input::IsKeyDown(int key) {
         if (key < 0 || key > 255) return false;
@@ -41,7 +45,11 @@ namespace Core {
             s_MouseX = (float)GET_X_LPARAM(lParam);
             s_MouseY = (float)GET_Y_LPARAM(lParam);
             break;
+        case WM_MOUSEWHEEL:
+            s_MouseWheelDelta += GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
+            break;
         }
+
     }
 
 } // namespace Core
