@@ -36,10 +36,12 @@ namespace Core {
     void Input::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         switch (msg) {
         case WM_KEYDOWN:
-            s_Keys[wParam] = true;
+            if (wParam < 256)
+                s_Keys[wParam] = true;
             break;
         case WM_KEYUP:
-            s_Keys[wParam] = false;
+            if (wParam < 256)
+                s_Keys[wParam] = false;
             break;
         case WM_MOUSEMOVE:
             s_MouseX = (float)GET_X_LPARAM(lParam);
