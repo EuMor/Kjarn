@@ -52,3 +52,18 @@ target_link_libraries(Kjarn
     PRIVATE
         Kjarn::Core
 )
+if(MSVC)
+    set(KJARN_COMPILE_OPTIONS
+        /W4
+        /permissive-
+    )
+else()
+    set(KJARN_COMPILE_OPTIONS
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+endif()
+
+target_compile_options(KjarnCore PRIVATE ${KJARN_COMPILE_OPTIONS})
+target_compile_options(Kjarn PRIVATE ${KJARN_COMPILE_OPTIONS})
