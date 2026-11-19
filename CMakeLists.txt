@@ -23,7 +23,7 @@ add_library(KjarnCore STATIC
     Core/src/Renderer.cpp
     Core/src/Time.cpp
     Core/src/Camera.cpp
-)
+ "Core/include/Core/Application.h" "Core/src/Application.cpp")
 
 add_library(Kjarn::Core ALIAS KjarnCore)
 
@@ -46,7 +46,7 @@ target_link_libraries(KjarnCore
 
 add_executable(Kjarn
     App/main.cpp
-)
+ "Core/include/Core/Application.h" "Core/src/Application.cpp")
 
 target_link_libraries(Kjarn
     PRIVATE
