@@ -6,16 +6,17 @@ namespace Core {
 
     class Window {
     public:
-        HWND GetNativeHandle() const { return m_hwnd; }
         Window(const std::wstring& title, int width, int height);
         ~Window();
+
+        Window(const Window&) = delete;
+        Window& operator=(const Window&) = delete;
+
+        HWND GetNativeHandle() const { return m_hwnd; }
 
         // Убираем старый Run() и добавляем:
         bool ShouldClose() const;
         void PollEvents(); // Обрабатывает сообщения Windows
-
-        Window(const Window&) = delete;
-        Window& operator=(const Window&) = delete;
 
     private:
         static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

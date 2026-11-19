@@ -7,8 +7,11 @@ namespace Core {
 
     class Renderer {
     public:
-        Renderer(HWND hwnd);
+        explicit Renderer(HWND hwnd);
         ~Renderer();
+
+        Renderer(const Renderer&) = delete;
+        Renderer& operator=(const Renderer&) = delete;
 
         // Вызывается в начале кадра: очищает экран цветом
         void BeginFrame();
@@ -25,12 +28,17 @@ namespace Core {
         int GetHeight() const { return m_height; }
 
     private:
-        HWND m_hwnd;
-        HDC m_memDC;
-        HBITMAP m_memBitmap;
-        HBITMAP m_oldBitmap;
+        void ReleaseBackBuffer();
+        
+        HWND m_hwnd = nullptr;
+        HDC m_memDC = nullptr;
+        HBITMAP m_memBitmap = nullptr;
+        HBITMAP m_oldBitmap = nullptr;
+        
         int m_width = 0;
         int m_height = 0;
+
+        bool m_frameReady = false;
     };
 
 }

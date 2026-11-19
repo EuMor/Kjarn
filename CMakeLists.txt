@@ -17,13 +17,18 @@ if(NOT WIN32)
     )
 endif()
 
+# --------------------------------------------------
+# Core library
+# --------------------------------------------------
+
 add_library(KjarnCore STATIC
+    Core/src/Application.cpp
     Core/src/Window.cpp
     Core/src/Input.cpp
     Core/src/Renderer.cpp
     Core/src/Time.cpp
     Core/src/Camera.cpp
- "Core/include/Core/Application.h" "Core/src/Application.cpp")
+)
 
 add_library(Kjarn::Core ALIAS KjarnCore)
 
@@ -44,14 +49,23 @@ target_link_libraries(KjarnCore
         gdi32
 )
 
+# --------------------------------------------------
+# Sandbox application
+# --------------------------------------------------
+
 add_executable(Kjarn
     App/main.cpp
- "Core/include/Core/Application.h" "Core/src/Application.cpp")
+)
 
 target_link_libraries(Kjarn
     PRIVATE
         Kjarn::Core
 )
+
+# --------------------------------------------------
+# Compiler warnings
+# --------------------------------------------------
+
 if(MSVC)
     set(KJARN_COMPILE_OPTIONS
         /W4
@@ -65,5 +79,10 @@ else()
     )
 endif()
 
-target_compile_options(KjarnCore PRIVATE ${KJARN_COMPILE_OPTIONS})
-target_compile_options(Kjarn PRIVATE ${KJARN_COMPILE_OPTIONS})
+target_compile_options(KjarnCore
+    PRIVATE ${KJARN_COMPILE_OPTIONS}
+)
+
+target_compile_options(Kjarn
+    PRIVATE ${KJARN_COMPILE_OPTIONS}
+)
