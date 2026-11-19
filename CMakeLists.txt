@@ -1,25 +1,54 @@
+
 cmake_minimum_required(VERSION 3.20)
-project(MyWindowLib LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-add_compile_definitions(UNICODE _UNICODE)
-
-add_library(Core STATIC
-    Core/src/Window.cpp
- "Core/include/Core/Input.h" "Core/src/Input.cpp" "Core/include/Core/Color.h" "Core/include/Core/Renderer.h" "Core/src/Renderer.cpp" "Core/include/Core/Time.h" "Core/src/Time.cpp" "Core/include/Core/Entity.h" "Core/include/Core/Camera.h" "Core/src/Camera.cpp")
-
-target_include_directories(Core PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/Core/include
+project(Kjarn
+    VERSION 0.1.0
+    DESCRIPTION "Kjarn Game Engine"
+    LANGUAGES CXX
 )
 
-if(WIN32)
-    target_link_libraries(Core PUBLIC user32 gdi32)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(NOT WIN32)
+    message(FATAL_ERROR
+        "The current Kjarn platform layer supports Windows only."
+    )
 endif()
 
-add_executable(App
-    App/main.cpp
- "Core/include/Core/Input.h" "Core/src/Input.cpp" "Core/include/Core/Color.h" "Core/include/Core/Renderer.h" "Core/src/Renderer.cpp" "Core/include/Core/Time.h" "Core/src/Time.cpp" "Core/include/Core/Entity.h" "Core/include/Core/Camera.h" "Core/src/Camera.cpp")
+add_library(KjarnCore STATIC
+    Core/src/Window.cpp
+    Core/src/Input.cpp
+    Core/src/Renderer.cpp
+    Core/src/Time.cpp
+    Core/src/Camera.cpp
+)
 
-target_link_libraries(App PRIVATE Core)
+add_library(Kjarn::Core ALIAS KjarnCore)
+
+target_include_directories(KjarnCore
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/Core/include
+)
+
+target_compile_definitions(KjarnCore
+    PUBLIC
+        UNICODE
+        _UNICODE
+)
+
+target_link_libraries(KjarnCore
+    PUBLIC
+        user32
+        gdi32
+)
+
+add_executable(Kjarn
+    App/main.cpp
+)
+
+target_link_libraries(Kjarn
+    PRIVATE
+        Kjarn::Core
+)
