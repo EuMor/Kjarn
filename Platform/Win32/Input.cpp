@@ -1,4 +1,4 @@
-#include "Core/Input.h"
+#include "Input.h"
 #include <cstring>
 #include <windowsx.h> // Нужен для GET_X_LPARAM
 

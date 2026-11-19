@@ -1,7 +1,7 @@
 #pragma once
 #include <windows.h>
-#include "Core/Color.h"
-#include "Core/Camera.h"
+#include "Color.h"
+#include "Camera.h"
 
 namespace Core {
 

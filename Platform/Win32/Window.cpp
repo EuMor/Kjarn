@@ -1,5 +1,5 @@
-#include "Core/Window.h"
-#include "Core/Input.h"
+#include "Window.h"
+#include "Input.h"
 
 #include <stdexcept>
 #include <system_error>

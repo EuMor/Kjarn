@@ -1,10 +1,10 @@
 
-#include "Core/Application.h"
+#include "Core/include/Core/Application.h"
 
-#include "Core/Camera.h"
-#include "Core/Color.h"
-#include "Core/Entity.h"
-#include "Core/Input.h"
+#include "Core/include/Core/Camera.h"
+#include "Core/include/Core/Color.h"
+#include "Core/include/Core/Entity.h"
+#include "Platform/Win32/Input.h"
 
 #include <vector>
 

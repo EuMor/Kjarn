@@ -1,8 +1,8 @@
 
 #pragma once
 
-#include "Core/Renderer.h"
-#include "Core/Window.h"
+#include "Renderer.h"
+#include "Platform/Win32/Window.h"
 
 #include <string>
 
