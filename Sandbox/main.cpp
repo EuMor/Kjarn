@@ -5,7 +5,7 @@
 #include "Core/Application.h"
 #include "Core/Camera.h"
 #include "Core/Color.h"
-#include "Core/Entity.h"
+#include "Core/Scene/Scene.h"
 
 #include "Platform/Win32/Window.h"
 #include "Platform/Win32/Input.h"
@@ -71,44 +71,44 @@ protected:
         );
     }
 
+
     void OnRender() override
     {
         auto& renderer = GetRenderer();
 
-        // 1. Render scene entities.
-        for (const auto& entity : m_scene)
+        // Render scene entities.
+        for (const auto& entity : m_scene.GetEntities())
         {
             renderer.DrawRect(
                 m_camera,
-                entity.x,
-                entity.y,
+                entity.transform.position.x,
+                entity.transform.position.y,
                 entity.width,
                 entity.height,
                 entity.color
             );
         }
 
-        // 2. Highlight selected entity.
-        if (m_selectedEntityIndex >= 0 &&
-            m_selectedEntityIndex < static_cast<int>(m_scene.size()))
-        {
-            const Core::Entity& selected =
-                m_scene[static_cast<std::size_t>(m_selectedEntityIndex)];
+        // Highlight selected entity.
+        const Core::Entity* selected =
+            m_scene.FindEntity(m_selectedEntityId);
 
+        if (selected != nullptr)
+        {
             renderer.DrawRect(
                 m_camera,
-                selected.x,
-                selected.y,
-                selected.width,
-                selected.height,
+                selected->transform.position.x,
+                selected->transform.position.y,
+                selected->width,
+                selected->height,
                 Core::Color(85, 145, 220)
             );
         }
 
-        // 3. Build and render editor UI.
         BuildEditorUI();
         m_uiBackend.Submit(m_uiDrawList);
     }
+
 
 private:
     static constexpr float TopBarHeight = 36.0f;
@@ -147,7 +147,7 @@ private:
 
         return std::min(
             maxVisible,
-            m_hierarchyEntityIndices.size()
+            m_hierarchyEntityIds.size()
         );
     }
 
@@ -161,7 +161,6 @@ private:
 
         Core::Input::GetMousePosition(mouseX, mouseY);
 
-        // Ignore clicks outside the left panel.
         if (mouseX < 0.0f || mouseX >= GetLeftPanelWidth())
             return;
 
@@ -177,9 +176,7 @@ private:
         if (rowIndex >= GetVisibleHierarchyCount())
             return;
 
-        m_selectedEntityIndex = static_cast<int>(
-            m_hierarchyEntityIndices[rowIndex]
-            );
+        m_selectedEntityId = m_hierarchyEntityIds[rowIndex];
     }
 
     void HandleViewportClick()
@@ -189,16 +186,23 @@ private:
 
         float mouseX = 0.0f;
         float mouseY = 0.0f;
+
         Core::Input::GetMousePosition(mouseX, mouseY);
 
-        // Получаем размеры панелей (те же, что в BuildEditorUI)
-        const float width = static_cast<float>(GetRenderer().GetWidth());
-        const float height = static_cast<float>(GetRenderer().GetHeight());
-        const float leftPanelWidth = GetLeftPanelWidth();
-        const float rightPanelWidth = std::min(280.0f, width * 0.30f);
-        const float rightPanelX = std::max(leftPanelWidth, width - rightPanelWidth);
+        const float width =
+            static_cast<float>(GetRenderer().GetWidth());
 
-        // Если клик был по UI (верхнее меню, левая или правая панель, нижний бар) - игнорируем
+        const float height =
+            static_cast<float>(GetRenderer().GetHeight());
+
+        const float leftPanelWidth = GetLeftPanelWidth();
+
+        const float rightPanelWidth =
+            std::min(280.0f, width * 0.30f);
+
+        const float rightPanelX =
+            std::max(leftPanelWidth, width - rightPanelWidth);
+
         if (mouseY < TopBarHeight ||
             mouseY > height - BottomBarHeight ||
             mouseX < leftPanelWidth ||
@@ -207,21 +211,29 @@ private:
             return;
         }
 
-        // Клик был в центре (Viewport). Переводим координаты.
-        float worldX, worldY;
-        m_camera.ScreenToWorld(mouseX, mouseY, width, height, worldX, worldY);
+        float worldX = 0.0f;
+        float worldY = 0.0f;
 
-        // Ищем объект под курсором (с конца, так как последние рисуются сверху)
-        m_selectedEntityIndex = -1; // Сбрасываем
-        for (int i = static_cast<int>(m_scene.size()) - 1; i >= 0; --i)
+        m_camera.ScreenToWorld(
+            mouseX, mouseY,
+            width, height,
+            worldX, worldY
+        );
+
+        m_selectedEntityId = {};
+
+        const auto& entities = m_scene.GetEntities();
+
+        for (auto it = entities.rbegin(); it != entities.rend(); ++it)
         {
-            if (m_scene[i].ContainsPoint(worldX, worldY))
+            if (it->ContainsPoint(worldX, worldY))
             {
-                m_selectedEntityIndex = i;
+                m_selectedEntityId = it->id;
                 break;
             }
         }
     }
+
 
     void CreateTestScene()
     {
@@ -237,18 +249,23 @@ private:
                     ? Core::Color(80, 80, 80)
                     : Core::Color(100, 100, 100);
 
-                m_scene.emplace_back(
-                    i * 100.0f,
-                    j * 100.0f,
-                    90.0f,
-                    90.0f,
-                    color
-                );
+                const Core::EntityId id = m_scene.CreateEntity();
+
+                Core::Entity* entity = m_scene.FindEntity(id);
+
+                if (entity == nullptr)
+                    continue;
+
+                entity->transform.position.x = i * 100.0f;
+                entity->transform.position.y = j * 100.0f;
+
+                entity->width = 90.0f;
+                entity->height = 90.0f;
+                entity->color = color;
             }
         }
 
-        // Add 25 cells around the center of the scene
-        // to the visible hierarchy list.
+        // Add 25 cells around the center to the hierarchy.
         for (int i = -2; i <= 2; ++i)
         {
             for (int j = -2; j <= 2; ++j)
@@ -259,10 +276,18 @@ private:
                         (j + gridSize)
                         );
 
-                m_hierarchyEntityIndices.push_back(index);
+                const auto& entities = m_scene.GetEntities();
+
+                if (index < entities.size())
+                {
+                    m_hierarchyEntityIds.push_back(
+                        entities[index].id
+                    );
+                }
             }
         }
     }
+
 
     void BuildEditorUI()
     {
@@ -391,19 +416,21 @@ private:
 
         for (std::size_t i = 0; i < visibleCount; ++i)
         {
-            const std::size_t entityIndex =
-                m_hierarchyEntityIndices[i];
+            const Core::EntityId entityId =
+                m_hierarchyEntityIds[i];
 
-            const Core::Entity& entity =
-                m_scene[entityIndex];
+            const Core::Entity* entity =
+                m_scene.FindEntity(entityId);
+
+            if (entity == nullptr)
+                continue;
 
             const float rowY =
                 GetHierarchyStartY() +
                 static_cast<float>(i) * HierarchyRowHeight;
 
             // Highlight selected row.
-            if (static_cast<int>(entityIndex) ==
-                m_selectedEntityIndex)
+            if (entityId == m_selectedEntityId)
             {
                 m_uiDrawList.AddFillRect(
                     {
@@ -416,8 +443,13 @@ private:
                 );
             }
 
-            const int gridX = static_cast<int>(entity.x / 100.0f);
-            const int gridY = static_cast<int>(entity.y / 100.0f);
+            const int gridX = static_cast<int>(
+                entity->transform.position.x / 100.0f
+                );
+
+            const int gridY = static_cast<int>(
+                entity->transform.position.y / 100.0f
+                );
 
             const std::string label =
                 "Cell (" +
@@ -429,7 +461,7 @@ private:
             m_uiDrawList.AddText(
                 { 28.0f, rowY + 4.0f },
                 label,
-                static_cast<int>(entityIndex) == m_selectedEntityIndex
+                entityId == m_selectedEntityId
                 ? text
                 : secondaryText,
                 12.0f
@@ -471,16 +503,20 @@ private:
         );
 
         // Inspector contents.
-        if (m_selectedEntityIndex >= 0 &&
-            m_selectedEntityIndex < static_cast<int>(m_scene.size()))
-        {
-            const Core::Entity& selected =
-                m_scene[static_cast<std::size_t>(m_selectedEntityIndex)];
+        const Core::Entity* selected =
+            m_scene.FindEntity(m_selectedEntityId);
 
+        if (selected != nullptr)
+        {
             const float inspectorX = rightPanelX + 12.0f;
 
-            const int gridX = static_cast<int>(selected.x / 100.0f);
-            const int gridY = static_cast<int>(selected.y / 100.0f);
+            const int gridX = static_cast<int>(
+                selected->transform.position.x / 100.0f
+                );
+
+            const int gridY = static_cast<int>(
+                selected->transform.position.y / 100.0f
+                );
 
             m_uiDrawList.AddText(
                 { inspectorX, 80.0f },
@@ -502,28 +538,28 @@ private:
 
             m_uiDrawList.AddText(
                 { inspectorX, 140.0f },
-                "Position X: " + std::to_string(selected.x),
+                "Position X: " + std::to_string(selected->transform.position.x),
                 secondaryText,
                 12.0f
             );
 
             m_uiDrawList.AddText(
                 { inspectorX, 162.0f },
-                "Position Y: " + std::to_string(selected.y),
+                "Position Y: " + std::to_string(selected->transform.position.y),
                 secondaryText,
                 12.0f
             );
 
             m_uiDrawList.AddText(
                 { inspectorX, 184.0f },
-                "Width: " + std::to_string(selected.width),
+                "Width: " + std::to_string(selected->width),
                 secondaryText,
                 12.0f
             );
 
             m_uiDrawList.AddText(
                 { inspectorX, 206.0f },
-                "Height: " + std::to_string(selected.height),
+                "Height: " + std::to_string(selected->height),
                 secondaryText,
                 12.0f
             );
@@ -538,7 +574,7 @@ private:
             m_uiDrawList.AddText(
                 { inspectorX, 272.0f },
                 "R: " + std::to_string(
-                    static_cast<int>(selected.color.r)
+                    static_cast<int>(selected->color.r)
                 ),
                 secondaryText,
                 12.0f
@@ -547,7 +583,7 @@ private:
             m_uiDrawList.AddText(
                 { inspectorX, 294.0f },
                 "G: " + std::to_string(
-                    static_cast<int>(selected.color.g)
+                    static_cast<int>(selected->color.g)
                 ),
                 secondaryText,
                 12.0f
@@ -556,7 +592,7 @@ private:
             m_uiDrawList.AddText(
                 { inspectorX, 316.0f },
                 "B: " + std::to_string(
-                    static_cast<int>(selected.color.b)
+                    static_cast<int>(selected->color.b)
                 ),
                 secondaryText,
                 12.0f
@@ -598,7 +634,7 @@ private:
 
         m_uiDrawList.AddText(
             { 12.0f, height - 18.0f },
-            m_selectedEntityIndex >= 0
+            m_selectedEntityId.IsValid()
             ? "OBJECT SELECTED"
             : "READY",
             accent,
@@ -614,13 +650,13 @@ private:
     }
 
     Core::Camera m_camera;
-    std::vector<Core::Entity> m_scene;
+    Core::Scene m_scene;
 
-    // Entity indices displayed in Scene Hierarchy.
-    std::vector<std::size_t> m_hierarchyEntityIndices;
+    // IDs of entities displayed in Scene Hierarchy.
+    std::vector<Core::EntityId> m_hierarchyEntityIds;
 
-    // -1 means that no entity is selected.
-    int m_selectedEntityIndex = -1;
+    // Invalid ID means that no entity is selected.
+    Core::EntityId m_selectedEntityId{};
 
     Kjarn::UI::UIDrawList m_uiDrawList;
     Kjarn::UI::IUIDrawBackend& m_uiBackend;
