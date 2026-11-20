@@ -38,7 +38,7 @@ add_library(KjarnCore STATIC
     Core/src/Application.cpp
     Core/src/Time.cpp
     Core/src/Camera.cpp
-)
+ "Sandbox/UI/Rendering/UIGeometry.h" "Sandbox/UI/Rendering/UIDrawCommand.h" "Sandbox/UI/Rendering/UIDrawList.h" "Sandbox/UI/Rendering/UIDrawList.cpp" "Sandbox/UI/Rendering/IUIDrawBackend.h")
 
 add_library(Kjarn::Core ALIAS KjarnCore)
 
@@ -59,7 +59,7 @@ target_compile_options(KjarnCore
 add_library(KjarnPlatformWin32 STATIC
     Platform/Win32/Window.cpp
     Platform/Win32/Input.cpp
-)
+ "Sandbox/UI/Rendering/UIGeometry.h" "Sandbox/UI/Rendering/UIDrawCommand.h" "Sandbox/UI/Rendering/UIDrawList.h" "Sandbox/UI/Rendering/UIDrawList.cpp" "Sandbox/UI/Rendering/IUIDrawBackend.h")
 
 add_library(Kjarn::PlatformWin32 ALIAS KjarnPlatformWin32)
 
@@ -91,7 +91,7 @@ target_compile_options(KjarnPlatformWin32
 
 add_library(KjarnRendererGDI STATIC
     Renderer/Win32/GdiRenderer.cpp
-)
+ "Sandbox/UI/Rendering/UIGeometry.h" "Sandbox/UI/Rendering/UIDrawCommand.h" "Sandbox/UI/Rendering/UIDrawList.h" "Sandbox/UI/Rendering/UIDrawList.cpp" "Sandbox/UI/Rendering/IUIDrawBackend.h")
 
 add_library(Kjarn::RendererGDI ALIAS KjarnRendererGDI)
 
@@ -119,20 +119,40 @@ target_compile_options(KjarnRendererGDI
 )
 
 # --------------------------------------------------
-# Sandbox
+# Sandbox UI
 # --------------------------------------------------
 
-add_executable(Kjarn
-    App/main.cpp
+add_library(KjarnSandboxUI STATIC
+    Sandbox/UI/Rendering/UIDrawList.cpp
 )
 
-target_link_libraries(Kjarn
+add_library(Kjarn::SandboxUI ALIAS KjarnSandboxUI)
+
+target_include_directories(KjarnSandboxUI
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_compile_options(KjarnSandboxUI
+    PRIVATE ${KJARN_COMPILE_OPTIONS}
+)
+
+# --------------------------------------------------
+# Sandbox Application
+# --------------------------------------------------
+
+add_executable(KjarnSandbox
+    Sandbox/main.cpp
+)
+
+target_link_libraries(KjarnSandbox
     PRIVATE
         Kjarn::Core
         Kjarn::PlatformWin32
         Kjarn::RendererGDI
+        Kjarn::SandboxUI
 )
 
-target_compile_options(Kjarn
+target_compile_options(KjarnSandbox
     PRIVATE ${KJARN_COMPILE_OPTIONS}
 )
