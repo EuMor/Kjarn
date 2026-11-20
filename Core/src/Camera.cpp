@@ -1,4 +1,4 @@
-#include "Core/include/Core/Camera.h"
+#include "Core/Camera.h"
 
 namespace Core {
     void Camera::WorldToScreen(float worldX, float worldY, float screenW, float screenH,

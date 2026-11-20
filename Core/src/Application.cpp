@@ -1,8 +1,8 @@
 
-#include "Core/include/Core/Application.h"
+#include "Core/Application.h"
 
 #include "Platform/Win32/Input.h"
-#include "Core/include/Core/Time.h"
+#include "Core/Time.h"
 
 #include <chrono>
 #include <thread>

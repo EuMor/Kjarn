@@ -28,12 +28,13 @@ add_library(KjarnCore STATIC
     Core/src/Renderer.cpp
     Core/src/Time.cpp
     Core/src/Camera.cpp
- "Renderer/Win32/GdiRenderer.h" "Renderer/Win32/GdiRenderer.cpp")
+)
 
 add_library(Kjarn::Core ALIAS KjarnCore)
 
 target_include_directories(KjarnCore
     PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/Core/include
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -55,7 +56,7 @@ target_link_libraries(KjarnCore
 
 add_executable(Kjarn
     App/main.cpp
- "Renderer/Win32/GdiRenderer.h" "Renderer/Win32/GdiRenderer.cpp")
+)
 
 target_link_libraries(Kjarn
     PRIVATE
