@@ -10,5 +10,8 @@ namespace Core {
         // Пересчитывает мировые координаты в экранные
         void WorldToScreen(float worldX, float worldY, float screenW, float screenH,
             float& outX, float& outY) const;
+
+        void ScreenToWorld(float screenX, float screenY, float screenW, float screenH,
+            float& outWorldX, float& outWorldY) const;
     };
 }

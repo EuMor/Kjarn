@@ -39,7 +39,7 @@ protected:
     {
         // Select an entity from Scene Hierarchy.
         HandleHierarchyClick();
-
+        HandleViewportClick();
         // Camera movement.
         constexpr float cameraSpeed = 500.0f;
 
@@ -180,6 +180,47 @@ private:
         m_selectedEntityIndex = static_cast<int>(
             m_hierarchyEntityIndices[rowIndex]
             );
+    }
+
+    void HandleViewportClick()
+    {
+        if (!Core::Input::IsLeftMouseButtonPressed())
+            return;
+
+        float mouseX = 0.0f;
+        float mouseY = 0.0f;
+        Core::Input::GetMousePosition(mouseX, mouseY);
+
+        // Получаем размеры панелей (те же, что в BuildEditorUI)
+        const float width = static_cast<float>(GetRenderer().GetWidth());
+        const float height = static_cast<float>(GetRenderer().GetHeight());
+        const float leftPanelWidth = GetLeftPanelWidth();
+        const float rightPanelWidth = std::min(280.0f, width * 0.30f);
+        const float rightPanelX = std::max(leftPanelWidth, width - rightPanelWidth);
+
+        // Если клик был по UI (верхнее меню, левая или правая панель, нижний бар) - игнорируем
+        if (mouseY < TopBarHeight ||
+            mouseY > height - BottomBarHeight ||
+            mouseX < leftPanelWidth ||
+            mouseX > rightPanelX)
+        {
+            return;
+        }
+
+        // Клик был в центре (Viewport). Переводим координаты.
+        float worldX, worldY;
+        m_camera.ScreenToWorld(mouseX, mouseY, width, height, worldX, worldY);
+
+        // Ищем объект под курсором (с конца, так как последние рисуются сверху)
+        m_selectedEntityIndex = -1; // Сбрасываем
+        for (int i = static_cast<int>(m_scene.size()) - 1; i >= 0; --i)
+        {
+            if (m_scene[i].ContainsPoint(worldX, worldY))
+            {
+                m_selectedEntityIndex = i;
+                break;
+            }
+        }
     }
 
     void CreateTestScene()

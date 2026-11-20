@@ -9,6 +9,8 @@ namespace Core {
     float Input::s_MouseX = 0.0f;
     float Input::s_MouseY = 0.0f;
     bool Input::s_LeftMousePressedThisFrame = false;
+    static bool s_MouseButtons[3] = { false };
+    static bool s_PrevMouseButtons[3] = { false };
 
     namespace {
         int s_MouseWheelDelta = 0;
@@ -17,6 +19,7 @@ namespace Core {
     void Input::Update() {
         // Копируем текущее состояние в предыдущее
         std::memcpy(s_PrevKeys, s_Keys, sizeof(s_Keys));
+        std::memcpy(s_PrevMouseButtons, s_MouseButtons, sizeof(s_MouseButtons));
         s_MouseWheelDelta = 0;// Сбрасываем колесико в конце кадра
         s_LeftMousePressedThisFrame = false;
     }
@@ -79,7 +82,7 @@ namespace Core {
         case WM_LBUTTONUP:
             s_Keys[VK_LBUTTON] = false;
             break;
-
+        
         case WM_KILLFOCUS:
             std::memset(s_Keys, 0, sizeof(s_Keys));
             s_LeftMousePressedThisFrame = false;

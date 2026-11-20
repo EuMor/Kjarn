@@ -22,6 +22,7 @@ namespace Core {
         static int GetMouseWheelDelta();
         static bool IsLeftMouseButtonPressed();
 
+        static bool IsMouseButtonPressed(int button); // 0 = левая, 1 = правая
     private:
         static bool s_Keys[256];      // Текущее состояние клавиш
         static bool s_PrevKeys[256];  // Состояние клавиш в прошлом кадре

@@ -7,4 +7,10 @@ namespace Core {
         outX = (worldX - x) * zoom + (screenW / 2.0f);
         outY = (worldY - y) * zoom + (screenH / 2.0f);
     }
+    void Camera::ScreenToWorld(float screenX, float screenY, float screenW, float screenH,
+        float& outWorldX, float& outWorldY) const {
+        // Обратная формула WorldToScreen
+        outWorldX = (screenX - screenW / 2.0f) / zoom + x;
+        outWorldY = (screenY - screenH / 2.0f) / zoom + y;
+    }
 }
