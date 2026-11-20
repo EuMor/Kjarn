@@ -8,7 +8,8 @@ namespace Core {
     bool Input::s_PrevKeys[256] = {};
     float Input::s_MouseX = 0.0f;
     float Input::s_MouseY = 0.0f;
-    
+    bool Input::s_LeftMousePressedThisFrame = false;
+
     namespace {
         int s_MouseWheelDelta = 0;
     }
@@ -17,6 +18,7 @@ namespace Core {
         // Копируем текущее состояние в предыдущее
         std::memcpy(s_PrevKeys, s_Keys, sizeof(s_Keys));
         s_MouseWheelDelta = 0;// Сбрасываем колесико в конце кадра
+        s_LeftMousePressedThisFrame = false;
     }
 
     int Input::GetMouseWheelDelta() { 
@@ -36,6 +38,11 @@ namespace Core {
     void Input::GetMousePosition(float& x, float& y) {
         x = s_MouseX;
         y = s_MouseY;
+    }
+
+    bool Input::IsLeftMouseButtonPressed()
+    {
+        return s_LeftMousePressedThisFrame;
     }
 
     void Input::ProcessMessage(
@@ -64,8 +71,18 @@ namespace Core {
             break;
         }
 
+        case WM_LBUTTONDOWN:
+            s_Keys[VK_LBUTTON] = true;
+            s_LeftMousePressedThisFrame = true;
+            break;
+
+        case WM_LBUTTONUP:
+            s_Keys[VK_LBUTTON] = false;
+            break;
+
         case WM_KILLFOCUS:
             std::memset(s_Keys, 0, sizeof(s_Keys));
+            s_LeftMousePressedThisFrame = false;
             break;
 
         case WM_MOUSEMOVE:
@@ -82,7 +99,10 @@ namespace Core {
             s_MouseWheelDelta +=
                 GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
             break;
+
+
         }
+
     }
 
 } // namespace Core

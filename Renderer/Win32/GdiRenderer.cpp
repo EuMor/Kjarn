@@ -218,4 +218,12 @@ namespace Renderer::Win32
     {
         return m_height;
     }
+    HDC GdiRenderer::GetFrameDeviceContext() const
+    {
+        if (!m_frameReady)
+            return nullptr;
+
+        return m_memDC;
+    }
+
 }

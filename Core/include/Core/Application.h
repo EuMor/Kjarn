@@ -21,7 +21,10 @@ namespace Core
         virtual void OnRender() = 0;
 
         IRenderer& GetRenderer() { return m_renderer; }
+        const IRenderer& GetRenderer() const { return m_renderer; }
+
         IWindow& GetWindow() { return m_window; }
+        const IWindow& GetWindow() const { return m_window; }
 
     private:
         void RunFrame();

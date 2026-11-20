@@ -38,7 +38,7 @@ add_library(KjarnCore STATIC
     Core/src/Application.cpp
     Core/src/Time.cpp
     Core/src/Camera.cpp
- "Sandbox/UI/Rendering/UIGeometry.h" "Sandbox/UI/Rendering/UIDrawCommand.h" "Sandbox/UI/Rendering/UIDrawList.h" "Sandbox/UI/Rendering/UIDrawList.cpp" "Sandbox/UI/Rendering/IUIDrawBackend.h")
+ )
 
 add_library(Kjarn::Core ALIAS KjarnCore)
 
@@ -59,7 +59,7 @@ target_compile_options(KjarnCore
 add_library(KjarnPlatformWin32 STATIC
     Platform/Win32/Window.cpp
     Platform/Win32/Input.cpp
- "Sandbox/UI/Rendering/UIGeometry.h" "Sandbox/UI/Rendering/UIDrawCommand.h" "Sandbox/UI/Rendering/UIDrawList.h" "Sandbox/UI/Rendering/UIDrawList.cpp" "Sandbox/UI/Rendering/IUIDrawBackend.h")
+ )
 
 add_library(Kjarn::PlatformWin32 ALIAS KjarnPlatformWin32)
 
@@ -69,11 +69,7 @@ target_include_directories(KjarnPlatformWin32
         ${CMAKE_CURRENT_SOURCE_DIR}/Core/include
 )
 
-target_compile_definitions(KjarnPlatformWin32
-    PUBLIC
-        UNICODE
-        _UNICODE
-)
+target_compile_definitions(KjarnPlatformWin32 PUBLIC UNICODE _UNICODE NOMINMAX)
 
 target_link_libraries(KjarnPlatformWin32
     PUBLIC
@@ -91,7 +87,7 @@ target_compile_options(KjarnPlatformWin32
 
 add_library(KjarnRendererGDI STATIC
     Renderer/Win32/GdiRenderer.cpp
- "Sandbox/UI/Rendering/UIGeometry.h" "Sandbox/UI/Rendering/UIDrawCommand.h" "Sandbox/UI/Rendering/UIDrawList.h" "Sandbox/UI/Rendering/UIDrawList.cpp" "Sandbox/UI/Rendering/IUIDrawBackend.h")
+)
 
 add_library(Kjarn::RendererGDI ALIAS KjarnRendererGDI)
 
@@ -101,11 +97,7 @@ target_include_directories(KjarnRendererGDI
         ${CMAKE_CURRENT_SOURCE_DIR}/Core/include
 )
 
-target_compile_definitions(KjarnRendererGDI
-    PUBLIC
-        UNICODE
-        _UNICODE
-)
+target_compile_definitions(KjarnRendererGDI PUBLIC UNICODE _UNICODE NOMINMAX)
 
 target_link_libraries(KjarnRendererGDI
     PUBLIC
@@ -124,6 +116,7 @@ target_compile_options(KjarnRendererGDI
 
 add_library(KjarnSandboxUI STATIC
     Sandbox/UI/Rendering/UIDrawList.cpp
+    Sandbox/UI/Rendering/Win32/GdiUIDrawBackend.cpp
 )
 
 add_library(Kjarn::SandboxUI ALIAS KjarnSandboxUI)
@@ -131,6 +124,13 @@ add_library(Kjarn::SandboxUI ALIAS KjarnSandboxUI)
 target_include_directories(KjarnSandboxUI
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(KjarnSandboxUI
+    PUBLIC
+        Kjarn::RendererGDI
+        gdi32
+        user32
 )
 
 target_compile_options(KjarnSandboxUI

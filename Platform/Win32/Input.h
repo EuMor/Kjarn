@@ -20,12 +20,14 @@ namespace Core {
         static void ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam);
 
         static int GetMouseWheelDelta();
+        static bool IsLeftMouseButtonPressed();
 
     private:
         static bool s_Keys[256];      // Текущее состояние клавиш
         static bool s_PrevKeys[256];  // Состояние клавиш в прошлом кадре
         static float s_MouseX;
         static float s_MouseY;
+        static bool s_LeftMousePressedThisFrame;
     };
 
 } // namespace Core

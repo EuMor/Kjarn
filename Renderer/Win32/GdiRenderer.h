@@ -2,7 +2,9 @@
 #pragma once
 
 #include "Core/IRenderer.h"
-
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 
 namespace Renderer::Win32
@@ -30,6 +32,8 @@ namespace Renderer::Win32
 
         int GetWidth() const override;
         int GetHeight() const override;
+
+        HDC GetFrameDeviceContext() const;
 
     private:
         void ReleaseBackBuffer();
