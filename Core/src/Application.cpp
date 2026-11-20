@@ -9,9 +9,12 @@
 
 namespace Core
 {
-    Application::Application(const ApplicationConfig& config)
-        : m_window(config.title, config.width, config.height)
-        , m_renderer(m_window.GetNativeHandle())
+    Application::Application(
+        IWindow& window,
+        IRenderer& renderer
+    )
+        : m_window(window)
+        , m_renderer(renderer)
     {
     }
 
@@ -23,9 +26,7 @@ namespace Core
         m_isRunning = true;
 
         while (m_isRunning && !m_window.ShouldClose())
-        {
             RunFrame();
-        }
 
         m_isRunning = false;
     }
@@ -49,6 +50,8 @@ namespace Core
 
         Input::Update();
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(1)
+        );
     }
 }

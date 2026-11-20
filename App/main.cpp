@@ -1,22 +1,25 @@
 
-#include "Core/include/Core/Application.h"
+#include "Core/Application.h"
 
-#include "Core/include/Core/Camera.h"
-#include "Core/include/Core/Color.h"
-#include "Core/include/Core/Entity.h"
+#include "Core/Camera.h"
+#include "Core/Color.h"
+#include "Core/Entity.h"
+
+#include "Platform/Win32/Window.h"
 #include "Platform/Win32/Input.h"
+
+#include "Renderer/Win32/GdiRenderer.h"
 
 #include <vector>
 
 class CameraTestApplication final : public Core::Application
 {
 public:
-    CameraTestApplication()
-        : Core::Application({
-            L"Kjarn Engine — Application Test",
-            800,
-            600
-            })
+    CameraTestApplication(
+        Core::IWindow& window,
+        Core::IRenderer& renderer
+    )
+        : Core::Application(window, renderer)
     {
         CreateTestScene();
     }
@@ -99,7 +102,17 @@ private:
 
 int main()
 {
-    CameraTestApplication application;
+    Core::Window window(
+        L"Kjarn Engine — Application Test",
+        800,
+        600
+    );
+
+    Renderer::Win32::GdiRenderer renderer(
+        window.GetNativeHandle()
+    );
+
+    CameraTestApplication application(window, renderer);
     application.Run();
 
     return 0;

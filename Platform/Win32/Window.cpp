@@ -4,6 +4,32 @@
 #include <stdexcept>
 #include <system_error>
 
+int Core::Window::GetWidth() const
+{
+    if (m_hwnd == nullptr)
+        return m_width;
+
+    RECT rc{};
+
+    if (!GetClientRect(m_hwnd, &rc))
+        return m_width;
+
+    return rc.right - rc.left;
+}
+
+int Core::Window::GetHeight() const
+{
+    if (m_hwnd == nullptr)
+        return m_height;
+
+    RECT rc{};
+
+    if (!GetClientRect(m_hwnd, &rc))
+        return m_height;
+
+    return rc.bottom - rc.top;
+}
+
 namespace Core {
 
     namespace {

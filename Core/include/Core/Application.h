@@ -1,24 +1,14 @@
-
 #pragma once
 
-#include "Renderer.h"
-#include "Platform/Win32/Window.h"
-
-#include <string>
+#include "Core/IWindow.h"
+#include "Core/IRenderer.h"
 
 namespace Core
 {
-    struct ApplicationConfig
-    {
-        std::wstring title = L"Kjarn Application";
-        int width = 1280;
-        int height = 720;
-    };
-
     class Application
     {
     public:
-        explicit Application(const ApplicationConfig& config = {});
+        Application(IWindow& window, IRenderer& renderer);
         virtual ~Application() = default;
 
         Application(const Application&) = delete;
@@ -30,14 +20,14 @@ namespace Core
         virtual void OnUpdate(float deltaTime) = 0;
         virtual void OnRender() = 0;
 
-        Renderer& GetRenderer() { return m_renderer; }
-        Window& GetWindow() { return m_window; }
+        IRenderer& GetRenderer() { return m_renderer; }
+        IWindow& GetWindow() { return m_window; }
 
     private:
         void RunFrame();
 
-        Window m_window;
-        Renderer m_renderer;
+        IWindow& m_window;
+        IRenderer& m_renderer;
 
         bool m_isRunning = false;
     };
