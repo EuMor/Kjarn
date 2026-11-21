@@ -41,6 +41,15 @@ protected:
         HandleHierarchyClick();
         HandleViewportClick();
         HandleDragging();
+        HandleUIClicks();
+
+        // Обработка удаления
+        if (m_selectedEntityId.IsValid() && Core::Input::IsKeyPressed(VK_DELETE))
+        {
+            m_scene.DestroyEntity(m_selectedEntityId); // Убедись, что этот метод есть в Scene
+            m_selectedEntityId = {}; // Сбрасываем выделение
+        }
+
         // Camera movement.
         constexpr float cameraSpeed = 500.0f;
 
@@ -278,19 +287,23 @@ private:
         }
 
         // --- 2. Процесс перетаскивания ---
+        // --- 2. Процесс перетаскивания ---
         if (m_isDragging && selected != nullptr)
         {
-            // Проверяем, что кнопка всё ещё зажата
             if (Core::Input::IsKeyDown(VK_LBUTTON))
             {
-                // Обновляем позицию внутри Transform
-                selected->transform.position.x = worldX - m_dragOffsetX;
-                selected->transform.position.y = worldY - m_dragOffsetY;
-            }
-            else
-            {
-                // Кнопка отпущена — завершаем перетаскивание
-                m_isDragging = false;
+                float newX = worldX - m_dragOffsetX;
+                float newY = worldY - m_dragOffsetY;
+
+                // Если зажат Ctrl — двигаем плавно. Иначе — прилипаем к сетке 100x100
+                if (!Core::Input::IsKeyDown(VK_CONTROL))
+                {
+                    newX = round(newX / 100.0f) * 100.0f;
+                    newY = round(newY / 100.0f) * 100.0f;
+                }
+
+                selected->transform.position.x = newX;
+                selected->transform.position.y = newY;
             }
         }
     }
@@ -308,6 +321,31 @@ private:
             mouseY <= height - BottomBarHeight &&
             mouseX >= leftPanelWidth &&
             mouseX <= rightPanelX);
+    }
+
+    void HandleUIClicks()
+    {
+        if (!Core::Input::IsLeftMouseButtonPressed()) return;
+
+        float mx, my;
+        Core::Input::GetMousePosition(mx, my);
+
+        // Если кликнули по нашей кнопке (500, 6, 100, 24)
+        if (mx >= 500.0f && mx <= 600.0f && my >= 6.0f && my <= 30.0f)
+        {
+            Core::EntityId newId = m_scene.CreateEntity();
+            Core::Entity* newEntity = m_scene.FindEntity(newId);
+            if (newEntity)
+            {
+                // Ставим в центр экрана (координаты камеры)
+                newEntity->transform.position.x = m_camera.x;
+                newEntity->transform.position.y = m_camera.y;
+                newEntity->width = 90.0f;
+                newEntity->height = 90.0f;
+                newEntity->color = Core::Color(200, 100, 50); // Оранжевый
+                m_selectedEntityId = newId;
+            }
+        }
     }
 
     void CreateTestScene()
@@ -484,6 +522,10 @@ private:
             text,
             13.0f
         );
+
+        // В блоке Top menu bar, после текста меню:
+        m_uiDrawList.AddFillRect({ 500.0f, 6.0f, 100.0f, 24.0f }, border); // Фон кнопки
+        m_uiDrawList.AddText({ 515.0f, 10.0f }, "+ Add Block", text, 12.0f);
 
         // Entity rows.
         const std::size_t visibleCount =
