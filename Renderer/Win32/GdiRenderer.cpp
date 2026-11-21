@@ -209,6 +209,21 @@ namespace Renderer::Win32
         m_frameReady = false;
     }
 
+    void GdiRenderer::DrawLine(const Core::Camera& camera, float x1, float y1, float x2, float y2, Core::Color color) {
+        float sx1, sy1, sx2, sy2;
+        camera.WorldToScreen(x1, y1, (float)m_width, (float)m_height, sx1, sy1);
+        camera.WorldToScreen(x2, y2, (float)m_width, (float)m_height, sx2, sy2);
+
+        HPEN pen = CreatePen(PS_SOLID, 1, RGB(color.r, color.g, color.b));
+        HPEN oldPen = (HPEN)SelectObject(m_memDC, pen);
+
+        MoveToEx(m_memDC, (int)sx1, (int)sy1, nullptr);
+        LineTo(m_memDC, (int)sx2, (int)sy2);
+
+        SelectObject(m_memDC, oldPen);
+        DeleteObject(pen);
+    }
+
     int GdiRenderer::GetWidth() const
     {
         return m_width;

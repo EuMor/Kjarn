@@ -30,6 +30,8 @@ namespace Renderer::Win32
             Core::Color color
         ) override;
 
+        void DrawLine(const Core::Camera& camera, float x1, float y1, float x2, float y2, Core::Color color);
+
         int GetWidth() const override;
         int GetHeight() const override;
 

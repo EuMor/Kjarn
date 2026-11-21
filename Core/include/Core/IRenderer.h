@@ -24,5 +24,6 @@ namespace Core
 
         virtual int GetWidth() const = 0;
         virtual int GetHeight() const = 0;
+        virtual void DrawLine(const Camera& camera, float x1, float y1, float x2, float y2, Color color) = 0;
     };
 }

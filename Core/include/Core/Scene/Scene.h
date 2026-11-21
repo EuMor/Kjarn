@@ -23,7 +23,10 @@ namespace Core
         std::size_t GetEntityCount() const;
 
         const std::vector<Entity>& GetEntities() const;
-
+        
+        void Clear() {
+            m_entities.clear(); 
+        }
     private:
         std::vector<Entity> m_entities;
 
