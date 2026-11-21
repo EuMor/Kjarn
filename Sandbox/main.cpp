@@ -95,14 +95,36 @@ protected:
 
             // 2. Объекты
             for (const auto& entity : m_scene.GetEntities())
-                renderer.DrawRect(m_camera, entity.transform.position.x, entity.transform.position.y, entity.width, entity.height, entity.color);
-
+            {
+                if (entity.shape == Core::ShapeType::Circle) {
+                    renderer.DrawCircle(m_camera, entity.transform.position.x, entity.transform.position.y, entity.width, entity.height, entity.color);
+                }
+                else if (entity.shape == Core::ShapeType::Triangle) {
+                    renderer.DrawTriangle(m_camera, entity.transform.position.x, entity.transform.position.y, entity.width, entity.height, entity.color);
+                }
+                else {
+                    renderer.DrawRect(m_camera, entity.transform.position.x, entity.transform.position.y, entity.width, entity.height, entity.color);
+                }
+            }
             // 3. Подсветка
+                        // 3. Подсветка
             for (Core::EntityId id : m_selectedEntityIds)
             {
                 const Core::Entity* selected = m_scene.FindEntity(id);
-                if (selected != nullptr)
-                    renderer.DrawRect(m_camera, selected->transform.position.x, selected->transform.position.y, selected->width, selected->height, Core::Color(85, 145, 220));
+                if (selected != nullptr) {
+                    float x = selected->transform.position.x;
+                    float y = selected->transform.position.y;
+                    float w = selected->width;
+                    float h = selected->height;
+                    Core::Color selColor(85, 145, 220); // Синий цвет
+                    float t = 2.0f / m_camera.zoom; // Толщина рамки 2 пикселя на экране
+
+                    // Рисуем рамку (4 прямоугольника по краям)
+                    renderer.DrawRect(m_camera, x, y, w, t, selColor); // Верх
+                    renderer.DrawRect(m_camera, x, y + h - t, w, t, selColor); // Низ
+                    renderer.DrawRect(m_camera, x, y, t, h, selColor); // Лево
+                    renderer.DrawRect(m_camera, x + w - t, y, t, h, selColor); // Право
+                }
             }
 
             // 4. Рамка выделения (теперь в МИРОВЫХ координатах)
@@ -150,6 +172,8 @@ private:
 
     float GetLeftPanelWidth() const { return std::min(220.0f, GetRenderer().GetWidth() * 0.25f); }
     float GetHierarchyStartY() const { return TopBarHeight + 32.0f + 8.0f; }
+
+    Core::ShapeType m_currentShapeType = Core::ShapeType::Rectangle;
 
     std::size_t GetVisibleHierarchyCount() const
     {
@@ -239,9 +263,27 @@ private:
 
                 if (clickedOnObject)
                 {
-                    if (!isAdditive || std::find(m_selectedEntityIds.begin(), m_selectedEntityIds.end(), clickedId) == m_selectedEntityIds.end()) {
-                        SelectEntity(clickedId, isAdditive);
+                    // Проверяем, был ли объект уже выделен до клика
+                    bool alreadySelected = std::find(m_selectedEntityIds.begin(), m_selectedEntityIds.end(), clickedId) != m_selectedEntityIds.end();
+
+                    if (isAdditive) {
+                        if (alreadySelected) {
+                            // Если зажат Ctrl и объект уже выделен — убираем его из выделения
+                            m_selectedEntityIds.erase(std::find(m_selectedEntityIds.begin(), m_selectedEntityIds.end(), clickedId));
+                        }
+                        else {
+                            m_selectedEntityIds.push_back(clickedId);
+                        }
                     }
+                    else {
+                        // Если Ctrl НЕ зажат, и объект еще не в выделении — сбрасываем старое и берем только этот
+                        if (!alreadySelected) {
+                            m_selectedEntityIds.clear();
+                            m_selectedEntityIds.push_back(clickedId);
+                        }
+                        // Если объект УЖЕ был выделен, мы НЕ очищаем массив, чтобы можно было тащить всю группу
+                    }
+
                     m_isDragging = true;
                     m_dragStartWorldX = worldX;
                     m_dragStartWorldY = worldY;
@@ -349,6 +391,11 @@ private:
         float mx, my;
         Core::Input::GetMousePosition(mx, my);
 
+        // Кнопки выбора фигуры (слева от Add Block)
+        if (mx >= 300.0f && mx <= 360.0f && my >= 6.0f && my <= 30.0f) m_currentShapeType = Core::ShapeType::Rectangle;
+        if (mx >= 365.0f && mx <= 425.0f && my >= 6.0f && my <= 30.0f) m_currentShapeType = Core::ShapeType::Circle;
+        if (mx >= 430.0f && mx <= 490.0f && my >= 6.0f && my <= 30.0f) m_currentShapeType = Core::ShapeType::Triangle;
+
         if (mx >= 500.0f && mx <= 600.0f && my >= 6.0f && my <= 30.0f)
         {
             Core::EntityId newId = m_scene.CreateEntity();
@@ -362,9 +409,20 @@ private:
                 newEntity->transform.position.x = gridX + (CellSize - newEntity->width) / 2.0f;
                 newEntity->transform.position.y = gridY + (CellSize - newEntity->height) / 2.0f;
                 newEntity->color = Core::Color(200, 100, 50);
+                newEntity->shape = m_currentShapeType;
+
+                if (m_currentShapeType == Core::ShapeType::Circle)
+                    newEntity->color = Core::Color(220, 80, 80); // Красный круг
+                else if (m_currentShapeType == Core::ShapeType::Triangle)
+                    newEntity->color = Core::Color(80, 220, 80); // Зеленый треугольник
+                else
+                    newEntity->color = Core::Color(200, 100, 50); // Оранжевый квадрат
+
                 m_selectedEntityIds = { newId };
             }
         }
+
+
     }
 
     void RegenerateScene()
@@ -447,6 +505,20 @@ private:
             m_uiDrawList.AddText({ 14.0f, 9.0f }, "KJARN", accent, 17.0f);
             m_uiDrawList.AddText({ 100.0f, 11.0f }, "File    Edit    View    Project    Build    Help", text, 13.0f);
             m_uiDrawList.AddFillRect({ 500.0f, 6.0f, 100.0f, 24.0f }, border);
+
+            // Кнопки выбора фигуры
+            Kjarn::UI::UIColor activeColor = accent;
+            Kjarn::UI::UIColor inactiveColor = border;
+
+            m_uiDrawList.AddFillRect({ 300.0f, 6.0f, 60.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Rectangle ? activeColor : inactiveColor);
+            m_uiDrawList.AddText({ 315.0f, 10.0f }, "Rect", text, 12.0f);
+
+            m_uiDrawList.AddFillRect({ 365.0f, 6.0f, 60.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Circle ? activeColor : inactiveColor);
+            m_uiDrawList.AddText({ 376.0f, 10.0f }, "Circle", text, 12.0f);
+
+            m_uiDrawList.AddFillRect({ 430.0f, 6.0f, 60.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Triangle ? activeColor : inactiveColor);
+            m_uiDrawList.AddText({ 445.0f, 10.0f }, "Tri", text, 12.0f);
+
             m_uiDrawList.AddText({ 515.0f, 10.0f }, "+ Add Block", text, 12.0f);
             m_uiDrawList.AddLine({ 0.0f, TopBarHeight }, { width, TopBarHeight }, border);
 

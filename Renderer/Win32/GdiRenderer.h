@@ -30,7 +30,10 @@ namespace Renderer::Win32
             Core::Color color
         ) override;
 
-        void DrawLine(const Core::Camera& camera, float x1, float y1, float x2, float y2, Core::Color color);
+        void DrawCircle(const Core::Camera& camera, float x, float y, float width, float height, Core::Color color) override;
+        void DrawTriangle(const Core::Camera& camera, float x, float y, float width, float height, Core::Color color) override;
+
+        void DrawLine(const Core::Camera& camera, float x1, float y1, float x2, float y2, Core::Color color)override;
 
         int GetWidth() const override;
         int GetHeight() const override;

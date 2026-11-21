@@ -175,6 +175,50 @@ namespace Renderer::Win32
         DeleteObject(brush);
     }
 
+    void GdiRenderer::DrawCircle(const Core::Camera& camera, float x, float y, float width, float height, Core::Color color) {
+        float screenX, screenY;
+        camera.WorldToScreen(x, y, (float)m_width, (float)m_height, screenX, screenY);
+        float w = width * camera.zoom;
+        float h = height * camera.zoom;
+
+        HBRUSH brush = CreateSolidBrush(RGB(color.r, color.g, color.b));
+        HBRUSH oldBrush = (HBRUSH)SelectObject(m_memDC, brush);
+
+        // Рисуем круг без обводки (используем NULL_PEN для скорости)
+        HPEN pen = (HPEN)GetStockObject(NULL_PEN);
+        HPEN oldPen = (HPEN)SelectObject(m_memDC, pen);
+
+        Ellipse(m_memDC, (int)screenX, (int)screenY, (int)(screenX + w), (int)(screenY + h));
+
+        SelectObject(m_memDC, oldBrush);
+        SelectObject(m_memDC, oldPen);
+        DeleteObject(brush);
+    }
+
+    void GdiRenderer::DrawTriangle(const Core::Camera& camera, float x, float y, float width, float height, Core::Color color) {
+        float screenX, screenY;
+        camera.WorldToScreen(x, y, (float)m_width, (float)m_height, screenX, screenY);
+        float w = width * camera.zoom;
+        float h = height * camera.zoom;
+
+        HBRUSH brush = CreateSolidBrush(RGB(color.r, color.g, color.b));
+        HBRUSH oldBrush = (HBRUSH)SelectObject(m_memDC, brush);
+        HPEN pen = (HPEN)GetStockObject(NULL_PEN);
+        HPEN oldPen = (HPEN)SelectObject(m_memDC, pen);
+
+        // Треугольник смотрящий вверх: вершина сверху по центру, основание снизу
+        POINT points[3];
+        points[0] = { (LONG)(screenX + w / 2.0f), (LONG)screenY };               // Верхушка
+        points[1] = { (LONG)screenX,              (LONG)(screenY + h) };          // Левый нижний
+        points[2] = { (LONG)(screenX + w),        (LONG)(screenY + h) };          // Правый нижний
+
+        Polygon(m_memDC, points, 3);
+
+        SelectObject(m_memDC, oldBrush);
+        SelectObject(m_memDC, oldPen);
+        DeleteObject(brush);
+    }
+
     void GdiRenderer::EndFrame()
     {
         if (!m_frameReady ||

@@ -13,14 +13,9 @@ namespace Core
         virtual void BeginFrame() = 0;
         virtual void EndFrame() = 0;
 
-        virtual void DrawRect(
-            const Camera& camera,
-            float x,
-            float y,
-            float width,
-            float height,
-            Color color
-        ) = 0;
+        virtual void DrawRect(const Camera& camera, float x, float y, float width, float height, Color color) = 0;
+        virtual void DrawCircle(const Camera& camera, float x, float y, float width, float height, Color color) = 0;
+        virtual void DrawTriangle(const Camera& camera, float x, float y, float width, float height, Color color) = 0;
 
         virtual int GetWidth() const = 0;
         virtual int GetHeight() const = 0;

@@ -6,6 +6,11 @@
 
 namespace Core {
 
+    enum class ShapeType {
+        Rectangle,
+        Circle,
+        Triangle
+    };
     struct Entity {
         EntityId id{};
         Transform transform{};
@@ -21,6 +26,7 @@ namespace Core {
         bool IsValid() const {
             return id.IsValid();
         }
+        ShapeType shape = ShapeType::Rectangle;
 
         bool ContainsPoint(float worldX, float worldY) const {
             const float x = transform.position.x;
