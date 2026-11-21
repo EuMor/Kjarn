@@ -40,6 +40,7 @@ protected:
         // Select an entity from Scene Hierarchy.
         HandleHierarchyClick();
         HandleViewportClick();
+        HandleDragging();
         // Camera movement.
         constexpr float cameraSpeed = 500.0f;
 
@@ -114,6 +115,11 @@ private:
     static constexpr float TopBarHeight = 36.0f;
     static constexpr float BottomBarHeight = 24.0f;
     static constexpr float HierarchyRowHeight = 22.0f;
+
+    // Состояние перетаскивания
+    bool m_isDragging = false;
+    float m_dragOffsetX = 0.0f;
+    float m_dragOffsetY = 0.0f;
 
     float GetLeftPanelWidth() const
     {
@@ -234,6 +240,75 @@ private:
         }
     }
 
+    void HandleDragging()
+    {
+        // Получаем текущую позицию мыши в экранных координатах
+        float mouseX = 0.0f;
+        float mouseY = 0.0f;
+        Core::Input::GetMousePosition(mouseX, mouseY);
+
+        // Переводим экранные координаты в мировые с учётом камеры
+        float worldX = 0.0f;
+        float worldY = 0.0f;
+        m_camera.ScreenToWorld(
+            mouseX, mouseY,
+            static_cast<float>(GetRenderer().GetWidth()),
+            static_cast<float>(GetRenderer().GetHeight()),
+            worldX, worldY
+        );
+
+        // Получаем указатель на выбранный объект через твою новую систему
+        Core::Entity* selected = m_scene.FindEntity(m_selectedEntityId);
+
+        // --- 1. Начало перетаскивания ---
+        if (Core::Input::IsLeftMouseButtonPressed())
+        {
+            // Если объект выбран и клик был во вьюпорте (не в UI)
+            if (selected != nullptr && IsMouseOverViewport(mouseX, mouseY))
+            {
+                // Проверяем, что мы кликнули именно по объекту
+                if (selected->ContainsPoint(worldX, worldY))
+                {
+                    m_isDragging = true;
+                    // Запоминаем смещение, используя твой новый Transform
+                    m_dragOffsetX = worldX - selected->transform.position.x;
+                    m_dragOffsetY = worldY - selected->transform.position.y;
+                }
+            }
+        }
+
+        // --- 2. Процесс перетаскивания ---
+        if (m_isDragging && selected != nullptr)
+        {
+            // Проверяем, что кнопка всё ещё зажата
+            if (Core::Input::IsKeyDown(VK_LBUTTON))
+            {
+                // Обновляем позицию внутри Transform
+                selected->transform.position.x = worldX - m_dragOffsetX;
+                selected->transform.position.y = worldY - m_dragOffsetY;
+            }
+            else
+            {
+                // Кнопка отпущена — завершаем перетаскивание
+                m_isDragging = false;
+            }
+        }
+    }
+
+    bool IsMouseOverViewport(float mouseX, float mouseY) const
+    {
+        const float width = static_cast<float>(GetRenderer().GetWidth());
+        const float height = static_cast<float>(GetRenderer().GetHeight());
+        const float leftPanelWidth = GetLeftPanelWidth();
+        const float rightPanelWidth = std::min(280.0f, width * 0.30f);
+        const float rightPanelX = std::max(leftPanelWidth, width - rightPanelWidth);
+
+        // Проверяем, что клик не попал в верхнее меню, нижний бар, левую или правую панель
+        return (mouseY >= TopBarHeight &&
+            mouseY <= height - BottomBarHeight &&
+            mouseX >= leftPanelWidth &&
+            mouseX <= rightPanelX);
+    }
 
     void CreateTestScene()
     {
