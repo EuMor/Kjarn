@@ -52,8 +52,6 @@ protected:
         {
             // --- ЛОГИКА ИГРЫ ---
             Core::Entity* player = nullptr;
-
-            // Ищем игрока
             for (auto& entity : m_scene.GetEntities()) {
                 if (entity.isPlayer) { player = &entity; break; }
             }
@@ -70,30 +68,10 @@ protected:
                 if (Core::Input::IsKeyDown(VK_SPACE) && player->isGrounded) {
                     player->velocityY = jumpForce;
                 }
-
-                // Гравитация для игрока
-                player->velocityY += m_gravity * deltaTime;
-                if (player->velocityY > 1500.0f) player->velocityY = 1500.0f; // Макс скорость падения
-
-                // Разрешаем коллизии
-                Core::Physics::ResolvePlayerCollision(*player, m_scene.GetEntities(), deltaTime);
             }
 
-            // Гравитация для остальных динамических объектов (не игрока и не статики)
-            for (auto& entity : m_scene.GetEntities())
-            {
-                if (entity.useGravity && !entity.isPlayer && !entity.isStatic)
-                {
-                    entity.velocityY += m_gravity * deltaTime;
-                    entity.transform.position.y += entity.velocityY * deltaTime;
-
-                    // Простая остановка на "полу", чтобы не улетали в бесконечность
-                    if (entity.transform.position.y + entity.height > 1000.0f) {
-                        entity.transform.position.y = 1000.0f - entity.height;
-                        entity.velocityY = 0.0f;
-                    }
-                }
-            }
+            // Обновляем физику для ВСЕЙ сцены сразу (игрок, ящики, всё падает и стакается)
+            Core::Physics::UpdateScene(m_scene.GetEntities(), deltaTime, m_gravity);
         }
         else
         {
@@ -521,6 +499,39 @@ private:
                 }
             }
 
+            // Обработка клика по чекбоксу в Инспекторе
+            if (!m_selectedEntityIds.empty() && !m_isPlaying)
+            {
+                const float rightPanelWidth = std::min(280.0f, width * 0.30f);
+                const float rightPanelX = std::max(GetLeftPanelWidth(), width - rightPanelWidth);
+                const float inspectorX = rightPanelX + 12.0f;
+
+                // Координаты, которые мы использовали при отрисовке
+                float cbY = 200.0f;
+                float cbX = inspectorX + 120.0f;
+                float cbSize = 14.0f;
+
+                // Если кликнули точно по чекбоксу
+                if (mx >= cbX && mx <= cbX + cbSize && my >= cbY && my <= cbY + cbSize)
+                {
+                    // Проверяем, все ли уже статичны
+                    bool allStatic = true;
+                    for (auto id : m_selectedEntityIds) {
+                        auto* e = m_scene.FindEntity(id);
+                        if (e && !e->isStatic) { allStatic = false; break; }
+                    }
+
+                    // Если все были статичны -> делаем их динамичными. Иначе -> делаем всех статичными.
+                    bool newState = !allStatic;
+
+                    for (auto id : m_selectedEntityIds) {
+                        auto* e = m_scene.FindEntity(id);
+                        if (e) e->isStatic = newState;
+                    }
+                    return; // Обязательно выходим, чтобы клик не провалился в сцену!
+                }
+            }
+
             return; // Выходим, чтобы клик по верхней панели не сработал во вьюпорте
         }
 
@@ -752,28 +763,54 @@ private:
             m_uiDrawList.AddText({ rightPanelX + 12.0f, TopBarHeight + 8.0f }, "INSPECTOR", text, 12.0f);
             m_uiDrawList.AddLine({ rightPanelX, TopBarHeight }, { rightPanelX, height - BottomBarHeight }, border);
 
-            if (m_selectedEntityIds.size() == 1)
+            if (!m_selectedEntityIds.empty())
             {
-                const Core::Entity* selected = m_scene.FindEntity(m_selectedEntityIds[0]);
-                if (selected) {
-                    float inspectorX = rightPanelX + 12.0f;
-                    int gridX = (int)(selected->transform.position.x / CellSize);
-                    int gridY = (int)(selected->transform.position.y / CellSize);
+                const float inspectorX = rightPanelX + 12.0f;
 
-                    m_uiDrawList.AddText({ inspectorX, 80.0f }, "Cell (" + std::to_string(gridX) + ", " + std::to_string(gridY) + ")", accent, 14.0f);
-                    m_uiDrawList.AddText({ inspectorX, 112.0f }, "Transform", text, 13.0f);
-                    m_uiDrawList.AddText({ inspectorX, 140.0f }, "Position X: " + std::to_string((int)selected->transform.position.x), secondaryText, 12.0f);
-                    m_uiDrawList.AddText({ inspectorX, 162.0f }, "Position Y: " + std::to_string((int)selected->transform.position.y), secondaryText, 12.0f);
+                // Показываем информацию о выделении
+                if (m_selectedEntityIds.size() == 1)
+                {
+                    const Core::Entity* selected = m_scene.FindEntity(m_selectedEntityIds[0]);
+                    if (selected) {
+                        int gridX = (int)(selected->transform.position.x / CellSize);
+                        int gridY = (int)(selected->transform.position.y / CellSize);
+                        m_uiDrawList.AddText({ inspectorX, 80.0f }, "Cell (" + std::to_string(gridX) + ", " + std::to_string(gridY) + ")", accent, 14.0f);
+                        m_uiDrawList.AddText({ inspectorX, 140.0f }, "Position X: " + std::to_string((int)selected->transform.position.x), secondaryText, 12.0f);
+                        m_uiDrawList.AddText({ inspectorX, 162.0f }, "Position Y: " + std::to_string((int)selected->transform.position.y), secondaryText, 12.0f);
+                    }
                 }
-            }
-            else if (m_selectedEntityIds.size() > 1)
-            {
-                m_uiDrawList.AddText({ rightPanelX + 12.0f, 80.0f }, std::to_string(m_selectedEntityIds.size()) + " objects selected", accent, 14.0f);
+                else
+                {
+                    m_uiDrawList.AddText({ inspectorX, 80.0f }, std::to_string(m_selectedEntityIds.size()) + " objects selected", accent, 14.0f);
+                }
+
+                // ОБЩИЙ ЧЕКБОКС ДЛЯ ВСЕХ ВЫДЕЛЕННЫХ
+                float cbY = 200.0f;
+                m_uiDrawList.AddText({ inspectorX, cbY + 2.0f }, "Is Static (Ground):", text, 12.0f);
+
+                // Координаты квадратика чекбокса
+                float cbX = inspectorX + 120.0f;
+                float cbSize = 14.0f;
+
+                m_uiDrawList.AddFillRect({ cbX, cbY, cbSize, cbSize }, border);
+
+                // Проверяем, все ли выделенные объекты статичны
+                bool allStatic = true;
+                for (auto id : m_selectedEntityIds) {
+                    auto* e = m_scene.FindEntity(id);
+                    if (e && !e->isStatic) { allStatic = false; break; }
+                }
+
+                // Если все статичны, рисуем галочку (заливку)
+                if (allStatic) {
+                    m_uiDrawList.AddFillRect({ cbX + 2.0f, cbY + 2.0f, cbSize - 4.0f, cbSize - 4.0f }, accent);
+                }
             }
             else
             {
                 m_uiDrawList.AddText({ rightPanelX + 12.0f, 80.0f }, "No object selected", secondaryText, 12.0f);
             }
+
 
             m_uiDrawList.AddFillRect({ 0.0f, height - BottomBarHeight, width, BottomBarHeight }, panelHeader);
             m_uiDrawList.AddLine({ 0.0f, height - BottomBarHeight }, { width, height - BottomBarHeight }, border);

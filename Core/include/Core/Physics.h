@@ -1,11 +1,10 @@
 #pragma once
-#include "Core/Scene/Entity.h" 
-#include <vector>              
+#include "Core/Scene/Entity.h"
+#include <vector>
 #include <cmath>
 
 namespace Core {
     namespace Physics {
-        // Проверка пересечения двух прямоугольников (AABB)
         inline bool CheckCollision(const Entity& a, const Entity& b) {
             return (a.transform.position.x < b.transform.position.x + b.width &&
                 a.transform.position.x + a.width > b.transform.position.x &&
@@ -13,34 +12,49 @@ namespace Core {
                 a.transform.position.y + a.height > b.transform.position.y);
         }
 
-        // Разрешение коллизий для игрока (упрощенное)
-        inline void ResolvePlayerCollision(Entity& player, const std::vector<Entity>& scene, float dt) {
-            player.isGrounded = false;
-
-            // Двигаем по X
-            player.transform.position.x += player.velocityX * dt;
-            for (const auto& other : scene) {
-                if (&player == &other || other.isPlayer || !other.isStatic) continue;
-                if (CheckCollision(player, other)) {
-                    if (player.velocityX > 0) player.transform.position.x = other.transform.position.x - player.width;
-                    if (player.velocityX < 0) player.transform.position.x = other.transform.position.x + other.width;
-                    player.velocityX = 0;
+        // Теперь физика обновляет ВСЕ объекты на сцене
+        inline void UpdateScene(std::vector<Entity>& entities, float dt, float gravity) {
+            // 1. Применяем гравитацию ко всем динамическим объектам
+            for (auto& e : entities) {
+                if (!e.isStatic && e.useGravity) {
+                    e.velocityY += gravity * dt;
+                    if (e.velocityY > 1500.0f) e.velocityY = 1500.0f; // Макс скорость падения
+                    e.isGrounded = false;
                 }
             }
 
-            // Двигаем по Y
-            player.transform.position.y += player.velocityY * dt;
-            for (const auto& other : scene) {
-                if (&player == &other || other.isPlayer || !other.isStatic) continue;
-                if (CheckCollision(player, other)) {
-                    if (player.velocityY > 0) { // Падаем вниз
-                        player.transform.position.y = other.transform.position.y - player.height;
-                        player.velocityY = 0;
-                        player.isGrounded = true;
+            // 2. Двигаем по X и решаем коллизии по X
+            for (auto& e : entities) {
+                if (e.isStatic) continue;
+                e.transform.position.x += e.velocityX * dt;
+
+                for (auto& other : entities) {
+                    if (&e == &other) continue; // Не проверяем сам с собой
+                    if (CheckCollision(e, other)) {
+                        if (e.velocityX > 0) e.transform.position.x = other.transform.position.x - e.width;
+                        else if (e.velocityX < 0) e.transform.position.x = other.transform.position.x + other.width;
+                        e.velocityX = 0;
                     }
-                    else if (player.velocityY < 0) { // Прыгаем вверх
-                        player.transform.position.y = other.transform.position.y + other.height;
-                        player.velocityY = 0;
+                }
+            }
+
+            // 3. Двигаем по Y и решаем коллизии по Y
+            for (auto& e : entities) {
+                if (e.isStatic) continue;
+                e.transform.position.y += e.velocityY * dt;
+
+                for (auto& other : entities) {
+                    if (&e == &other) continue;
+                    if (CheckCollision(e, other)) {
+                        if (e.velocityY > 0) { // Падаем вниз на объект
+                            e.transform.position.y = other.transform.position.y - e.height;
+                            e.velocityY = 0;
+                            e.isGrounded = true;
+                        }
+                        else if (e.velocityY < 0) { // Прыгаем вверх и бьемся головой
+                            e.transform.position.y = other.transform.position.y + other.height;
+                            e.velocityY = 0;
+                        }
                     }
                 }
             }
