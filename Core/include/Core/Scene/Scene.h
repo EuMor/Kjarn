@@ -13,6 +13,7 @@ namespace Core
     {
     public:
         EntityId CreateEntity();
+        Entity* CreateEntityWithId(EntityId id);
 
         bool DestroyEntity(EntityId id);
 

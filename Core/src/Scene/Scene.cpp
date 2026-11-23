@@ -2,6 +2,7 @@
 #include "Core/Scene/Scene.h"
 
 #include <algorithm>
+#include <limits>
 
 namespace Core {
 
@@ -13,6 +14,28 @@ namespace Core {
         m_entities.push_back(entity);
 
         return entity.id;
+    }
+
+    Entity* Scene::CreateEntityWithId(EntityId id)
+    {
+        if (!id.IsValid())
+            return nullptr;
+
+        if (id.value == std::numeric_limits<std::uint64_t>::max())
+            return nullptr;
+
+        if (FindEntity(id) != nullptr)
+            return nullptr;
+
+        Entity entity;
+        entity.id = id;
+
+        m_entities.push_back(entity);
+
+        if (id.value >= m_nextEntityId)
+            m_nextEntityId = id.value + 1;
+
+        return &m_entities.back();
     }
 
     bool Scene::DestroyEntity(EntityId id) {

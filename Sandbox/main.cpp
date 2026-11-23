@@ -6,6 +6,7 @@
 #include "Core/Camera.h"
 #include "Core/Color.h"
 #include "Core/Scene/Scene.h"
+#include "Core/Scene/SceneSerializer.h"
 
 #include "Platform/Win32/Window.h"
 #include "Platform/Win32/Input.h"
@@ -715,70 +716,42 @@ private:
 
     void SaveScene(const std::string& filename)
     {
-        std::ofstream file(filename);
-        if (!file.is_open()) return;
-
-        file << "KJARN_SCENE_V1\n";
-        const Core::Scene& activeScene = GetActiveScene();
-
-        for (const auto& entity : activeScene.GetEntities())
+        if (!Core::SceneSerializer::Save(m_scene, filename))
         {
-            std::string typeStr = "RECT";
-            if (entity.shape == Core::ShapeType::Circle) typeStr = "CIRCLE";
-            else if (entity.shape == Core::ShapeType::Triangle) typeStr = "TRIANGLE";
+            std::cerr << "Failed to save scene: "
+                << filename << "\n";
 
-            // Пишем тип, координаты, размеры и цвет
-            file << typeStr << " "
-                << entity.transform.position.x << " "
-                << entity.transform.position.y << " "
-                << entity.width << " "
-                << entity.height << " "
-                << (int)entity.color.r << " "
-                << (int)entity.color.g << " "
-                << (int)entity.color.b << "\n";
+            return;
         }
-        file.close();
+
+        std::cout << "Scene saved: "
+            << filename << "\n";
     }
 
     void LoadScene(const std::string& filename)
     {
-        std::ifstream file(filename);
-        if (!file.is_open()) return;
+        if (m_isPlaying)
+            return;
 
-        m_scene.Clear();
+        if (!Core::SceneSerializer::Load(filename, m_scene))
+        {
+            std::cerr << "Failed to load scene: "
+                << filename << "\n";
+
+            return;
+        }
+
         m_hierarchyEntityIds.clear();
         m_selectedEntityIds.clear();
 
-        std::string line;
-        std::getline(file, line); // Читаем заголовок "KJARN_SCENE_V1"
+        m_isDragging = false;
+        m_isMarqueeSelecting = false;
+        m_dragStartPositions.clear();
 
-        while (std::getline(file, line))
-        {
-            std::istringstream iss(line);
-            std::string typeStr;
-            float x, y, w, h;
-            int r, g, b;
+        BuildHierarchy();
 
-            if (iss >> typeStr >> x >> y >> w >> h >> r >> g >> b)
-            {
-                Core::EntityId id = m_scene.CreateEntity();
-                Core::Entity* entity = m_scene.FindEntity(id);
-                if (entity)
-                {
-                    entity->transform.position.x = x;
-                    entity->transform.position.y = y;
-                    entity->width = w;
-                    entity->height = h;
-                    entity->color = Core::Color((uint8_t)r, (uint8_t)g, (uint8_t)b);
-
-                    if (typeStr == "CIRCLE") entity->shape = Core::ShapeType::Circle;
-                    else if (typeStr == "TRIANGLE") entity->shape = Core::ShapeType::Triangle;
-                    else entity->shape = Core::ShapeType::Rectangle;
-                }
-            }
-        }
-        file.close();
-        BuildHierarchy(); // Нужно пересобрать список иерархии (вынеси этот код из RegenerateScene в отдельный метод)
+        std::cout << "Scene loaded: "
+            << filename << "\n";
     }
 
     void BuildEditorUI()
