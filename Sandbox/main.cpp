@@ -21,6 +21,8 @@
 #include <vector>
 #include <cmath>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 
 class SandboxApplication final : public Core::Application
 {
@@ -243,65 +245,62 @@ private:
 
         if (Core::Input::IsLeftMouseButtonPressed())
         {
-            if (IsMouseOverViewport(mouseX, mouseY))
-            {
-                float worldX, worldY;
-                m_camera.ScreenToWorld(mouseX, mouseY, w, h, worldX, worldY);
+            // Если клик был по UI (левая панель, правая панель, верх, низ) — ничего не делаем
+            if (!IsMouseOverViewport(mouseX, mouseY))
+                return;
 
-                bool isAdditive = Core::Input::IsKeyDown(VK_CONTROL) || Core::Input::IsKeyDown(VK_SHIFT);
+            float worldX, worldY;
+            m_camera.ScreenToWorld(mouseX, mouseY, w, h, worldX, worldY);
 
-                Core::EntityId clickedId = {};
-                bool clickedOnObject = false;
-                const auto& entities = m_scene.GetEntities();
-                for (auto it = entities.rbegin(); it != entities.rend(); ++it) {
-                    if (it->ContainsPoint(worldX, worldY)) {
-                        clickedId = it->id;
-                        clickedOnObject = true;
-                        break;
-                    }
+            bool isAdditive = Core::Input::IsKeyDown(VK_CONTROL) || Core::Input::IsKeyDown(VK_SHIFT);
+
+            Core::EntityId clickedId = {};
+            bool clickedOnObject = false;
+            const auto& entities = m_scene.GetEntities();
+            for (auto it = entities.rbegin(); it != entities.rend(); ++it) {
+                if (it->ContainsPoint(worldX, worldY)) {
+                    clickedId = it->id;
+                    clickedOnObject = true;
+                    break;
                 }
+            }
 
-                if (clickedOnObject)
-                {
-                    // Проверяем, был ли объект уже выделен до клика
-                    bool alreadySelected = std::find(m_selectedEntityIds.begin(), m_selectedEntityIds.end(), clickedId) != m_selectedEntityIds.end();
+            if (clickedOnObject)
+            {
+                bool alreadySelected = std::find(m_selectedEntityIds.begin(), m_selectedEntityIds.end(), clickedId) != m_selectedEntityIds.end();
 
-                    if (isAdditive) {
-                        if (alreadySelected) {
-                            // Если зажат Ctrl и объект уже выделен — убираем его из выделения
-                            m_selectedEntityIds.erase(std::find(m_selectedEntityIds.begin(), m_selectedEntityIds.end(), clickedId));
-                        }
-                        else {
-                            m_selectedEntityIds.push_back(clickedId);
-                        }
+                if (isAdditive) {
+                    if (alreadySelected) {
+                        m_selectedEntityIds.erase(std::find(m_selectedEntityIds.begin(), m_selectedEntityIds.end(), clickedId));
                     }
                     else {
-                        // Если Ctrl НЕ зажат, и объект еще не в выделении — сбрасываем старое и берем только этот
-                        if (!alreadySelected) {
-                            m_selectedEntityIds.clear();
-                            m_selectedEntityIds.push_back(clickedId);
-                        }
-                        // Если объект УЖЕ был выделен, мы НЕ очищаем массив, чтобы можно было тащить всю группу
+                        m_selectedEntityIds.push_back(clickedId);
                     }
+                }
+                else {
+                    if (!alreadySelected) {
+                        m_selectedEntityIds.clear();
+                        m_selectedEntityIds.push_back(clickedId);
+                    }
+                }
 
-                    m_isDragging = true;
-                    m_dragStartWorldX = worldX;
-                    m_dragStartWorldY = worldY;
-                    m_dragStartPositions.clear();
-                    for (auto id : m_selectedEntityIds) {
-                        auto* ent = m_scene.FindEntity(id);
-                        if (ent) m_dragStartPositions.push_back({ id, ent->transform.position.x, ent->transform.position.y });
-                    }
+                m_isDragging = true;
+                m_dragStartWorldX = worldX;
+                m_dragStartWorldY = worldY;
+                m_dragStartPositions.clear();
+                for (auto id : m_selectedEntityIds) {
+                    auto* ent = m_scene.FindEntity(id);
+                    if (ent) m_dragStartPositions.push_back({ id, ent->transform.position.x, ent->transform.position.y });
                 }
-                else
-                {
-                    if (!isAdditive) m_selectedEntityIds.clear();
-                    m_isMarqueeSelecting = true;
-                    m_marqueeStartWorldX = worldX;
-                    m_marqueeStartWorldY = worldY;
-                    m_marqueeCurrentWorldX = worldX;
-                    m_marqueeCurrentWorldY = worldY;
-                }
+            }
+            else
+            {
+                if (!isAdditive) m_selectedEntityIds.clear();
+                m_isMarqueeSelecting = true;
+                m_marqueeStartWorldX = worldX;
+                m_marqueeStartWorldY = worldY;
+                m_marqueeCurrentWorldX = worldX;
+                m_marqueeCurrentWorldY = worldY;
             }
         }
 
@@ -353,7 +352,6 @@ private:
                 bool isAdditive = Core::Input::IsKeyDown(VK_CONTROL) || Core::Input::IsKeyDown(VK_SHIFT);
                 if (!isAdditive) m_selectedEntityIds.clear();
 
-                // Проверяем пересечение прямоугольников в МИРОВЫХ координатах
                 for (const auto& entity : m_scene.GetEntities())
                 {
                     if (entity.transform.position.x < maxX &&
@@ -385,44 +383,71 @@ private:
 
     void HandleUIClicks()
     {
-        HandleHierarchyClick();
         if (!Core::Input::IsLeftMouseButtonPressed()) return;
 
         float mx, my;
         Core::Input::GetMousePosition(mx, my);
+        const float width = (float)GetRenderer().GetWidth();
 
-        // Кнопки выбора фигуры (слева от Add Block)
-        if (mx >= 300.0f && mx <= 360.0f && my >= 6.0f && my <= 30.0f) m_currentShapeType = Core::ShapeType::Rectangle;
-        if (mx >= 365.0f && mx <= 425.0f && my >= 6.0f && my <= 30.0f) m_currentShapeType = Core::ShapeType::Circle;
-        if (mx >= 430.0f && mx <= 490.0f && my >= 6.0f && my <= 30.0f) m_currentShapeType = Core::ShapeType::Triangle;
-
-        if (mx >= 500.0f && mx <= 600.0f && my >= 6.0f && my <= 30.0f)
+        // Если клик был в верхней панели (высота 36), обрабатываем только кнопки UI
+        if (my >= 0.0f && my <= TopBarHeight)
         {
-            Core::EntityId newId = m_scene.CreateEntity();
-            Core::Entity* newEntity = m_scene.FindEntity(newId);
-            if (newEntity)
+            // Кнопки выбора фигуры
+            if (mx >= 300.0f && mx <= 360.0f) m_currentShapeType = Core::ShapeType::Rectangle;
+            if (mx >= 365.0f && mx <= 425.0f) m_currentShapeType = Core::ShapeType::Circle;
+            if (mx >= 430.0f && mx <= 490.0f) m_currentShapeType = Core::ShapeType::Triangle;
+
+            // Кнопки Save и Load
+            if (mx >= width - 200.0f && mx <= width - 110.0f) SaveScene("level.kjarn");
+            if (mx >= width - 100.0f && mx <= width - 10.0f) LoadScene("level.kjarn");
+
+            // Кнопка + Add Block
+            if (mx >= 500.0f && mx <= 600.0f)
             {
-                newEntity->width = CellSize - 10.0f;
-                newEntity->height = CellSize - 10.0f;
-                float gridX = round(m_camera.x / CellSize) * CellSize;
-                float gridY = round(m_camera.y / CellSize) * CellSize;
-                newEntity->transform.position.x = gridX + (CellSize - newEntity->width) / 2.0f;
-                newEntity->transform.position.y = gridY + (CellSize - newEntity->height) / 2.0f;
-                newEntity->color = Core::Color(200, 100, 50);
-                newEntity->shape = m_currentShapeType;
+                Core::EntityId newId = m_scene.CreateEntity();
+                Core::Entity* newEntity = m_scene.FindEntity(newId);
+                if (newEntity)
+                {
+                    newEntity->width = CellSize - 10.0f;
+                    newEntity->height = CellSize - 10.0f;
+                    float gridX = round(m_camera.x / CellSize) * CellSize;
+                    float gridY = round(m_camera.y / CellSize) * CellSize;
+                    newEntity->transform.position.x = gridX + (CellSize - newEntity->width) / 2.0f;
+                    newEntity->transform.position.y = gridY + (CellSize - newEntity->height) / 2.0f;
+                    newEntity->shape = m_currentShapeType;
 
-                if (m_currentShapeType == Core::ShapeType::Circle)
-                    newEntity->color = Core::Color(220, 80, 80); // Красный круг
-                else if (m_currentShapeType == Core::ShapeType::Triangle)
-                    newEntity->color = Core::Color(80, 220, 80); // Зеленый треугольник
-                else
-                    newEntity->color = Core::Color(200, 100, 50); // Оранжевый квадрат
+                    if (m_currentShapeType == Core::ShapeType::Circle)
+                        newEntity->color = Core::Color(220, 80, 80);
+                    else if (m_currentShapeType == Core::ShapeType::Triangle)
+                        newEntity->color = Core::Color(80, 220, 80);
+                    else
+                        newEntity->color = Core::Color(200, 100, 50);
 
-                m_selectedEntityIds = { newId };
+                    m_selectedEntityIds = { newId };
+                }
             }
+            return; // Выходим, чтобы клик по верхней панели не сработал во вьюпорте
         }
 
+        // Если клик был НЕ в верхней панели, проверяем клики по иерархии
+        HandleHierarchyClick();
+    }
 
+    void BuildHierarchy()
+    {
+        m_hierarchyEntityIds.clear();
+        int gridWidth = m_gridRadius * 2 + 1;
+
+        // Берем только центральные 25 объектов для списка
+        for (int i = -2; i <= 2; ++i) {
+            for (int j = -2; j <= 2; ++j) {
+                std::size_t index = (std::size_t)((i + m_gridRadius) * gridWidth + (j + m_gridRadius));
+                const auto& entities = m_scene.GetEntities();
+                if (index < entities.size()) {
+                    m_hierarchyEntityIds.push_back(entities[index].id);
+                }
+            }
+        }
     }
 
     void RegenerateScene()
@@ -430,7 +455,6 @@ private:
         m_hierarchyEntityIds.clear();
         m_selectedEntityIds.clear();
 
-        int gridWidth = m_gridRadius * 2 + 1;
         float squareSize = CellSize - 10.0f;
         float offset = (CellSize - squareSize) / 2.0f;
 
@@ -451,13 +475,75 @@ private:
             }
         }
 
-        for (int i = -2; i <= 2; ++i) {
-            for (int j = -2; j <= 2; ++j) {
-                std::size_t index = (std::size_t)((i + m_gridRadius) * gridWidth + (j + m_gridRadius));
-                const auto& entities = m_scene.GetEntities();
-                if (index < entities.size()) m_hierarchyEntityIds.push_back(entities[index].id);
+        BuildHierarchy();
+    }
+
+
+    void SaveScene(const std::string& filename)
+    {
+        std::ofstream file(filename);
+        if (!file.is_open()) return;
+
+        file << "KJARN_SCENE_V1\n";
+
+        for (const auto& entity : m_scene.GetEntities())
+        {
+            std::string typeStr = "RECT";
+            if (entity.shape == Core::ShapeType::Circle) typeStr = "CIRCLE";
+            else if (entity.shape == Core::ShapeType::Triangle) typeStr = "TRIANGLE";
+
+            // Пишем тип, координаты, размеры и цвет
+            file << typeStr << " "
+                << entity.transform.position.x << " "
+                << entity.transform.position.y << " "
+                << entity.width << " "
+                << entity.height << " "
+                << (int)entity.color.r << " "
+                << (int)entity.color.g << " "
+                << (int)entity.color.b << "\n";
+        }
+        file.close();
+    }
+
+    void LoadScene(const std::string& filename)
+    {
+        std::ifstream file(filename);
+        if (!file.is_open()) return;
+
+        m_scene.Clear();
+        m_hierarchyEntityIds.clear();
+        m_selectedEntityIds.clear();
+
+        std::string line;
+        std::getline(file, line); // Читаем заголовок "KJARN_SCENE_V1"
+
+        while (std::getline(file, line))
+        {
+            std::istringstream iss(line);
+            std::string typeStr;
+            float x, y, w, h;
+            int r, g, b;
+
+            if (iss >> typeStr >> x >> y >> w >> h >> r >> g >> b)
+            {
+                Core::EntityId id = m_scene.CreateEntity();
+                Core::Entity* entity = m_scene.FindEntity(id);
+                if (entity)
+                {
+                    entity->transform.position.x = x;
+                    entity->transform.position.y = y;
+                    entity->width = w;
+                    entity->height = h;
+                    entity->color = Core::Color((uint8_t)r, (uint8_t)g, (uint8_t)b);
+
+                    if (typeStr == "CIRCLE") entity->shape = Core::ShapeType::Circle;
+                    else if (typeStr == "TRIANGLE") entity->shape = Core::ShapeType::Triangle;
+                    else entity->shape = Core::ShapeType::Rectangle;
+                }
             }
         }
+        file.close();
+        BuildHierarchy(); // Нужно пересобрать список иерархии (вынеси этот код из RegenerateScene в отдельный метод)
     }
 
     void BuildEditorUI()
@@ -505,6 +591,13 @@ private:
             m_uiDrawList.AddText({ 14.0f, 9.0f }, "KJARN", accent, 17.0f);
             m_uiDrawList.AddText({ 100.0f, 11.0f }, "File    Edit    View    Project    Build    Help", text, 13.0f);
             m_uiDrawList.AddFillRect({ 500.0f, 6.0f, 100.0f, 24.0f }, border);
+
+            // Кнопки Save и Load справа
+            m_uiDrawList.AddFillRect({ width - 200.0f, 6.0f, 90.0f, 24.0f }, border);
+            m_uiDrawList.AddText({ width - 185.0f, 10.0f }, "Save", text, 12.0f);
+
+            m_uiDrawList.AddFillRect({ width - 100.0f, 6.0f, 90.0f, 24.0f }, border);
+            m_uiDrawList.AddText({ width - 85.0f, 10.0f }, "Load", text, 12.0f);
 
             // Кнопки выбора фигуры
             Kjarn::UI::UIColor activeColor = accent;
