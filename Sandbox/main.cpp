@@ -1,4 +1,4 @@
-#ifndef NOMINMAX
+ï»¿#ifndef NOMINMAX
 #define NOMINMAX
 #endif
 
@@ -35,41 +35,66 @@ public:
         : Core::Application(window, renderer)
         , m_uiBackend(uiBackend)
     {
-        // Ïðè çàïóñêå ïîêàçûâàåì ìåíþ ñîçäàíèÿ ñåòêè
+        // ÐŸÑ€Ð¸ Ð·Ð°Ð¿ÑƒÑÐºÐµ Ð¿Ð¾ÐºÐ°Ð·Ñ‹Ð²Ð°ÐµÐ¼ Ð¼ÐµÐ½ÑŽ ÑÐ¾Ð·Ð´Ð°Ð½Ð¸Ñ ÑÐµÑ‚ÐºÐ¸
         m_showStartupMenu = true;
     }
 
 protected:
     void OnUpdate(float deltaTime) override
     {
-        // Åñëè îòêðûòî ñòàðòîâîå ìåíþ, áëîêèðóåì îñòàëüíîå óïðàâëåíèå
+        // Ð•ÑÐ»Ð¸ Ð¾Ñ‚ÐºÑ€Ñ‹Ñ‚Ð¾ ÑÑ‚Ð°Ñ€Ñ‚Ð¾Ð²Ð¾Ðµ Ð¼ÐµÐ½ÑŽ, Ð±Ð»Ð¾ÐºÐ¸Ñ€ÑƒÐµÐ¼ Ð¾ÑÑ‚Ð°Ð»ÑŒÐ½Ð¾Ðµ ÑƒÐ¿Ñ€Ð°Ð²Ð»ÐµÐ½Ð¸Ðµ
         if (m_showStartupMenu)
         {
             HandleStartupMenu();
             return;
         }
-
-        // Îáû÷íàÿ ëîãèêà ðåäàêòîðà
         HandleUIClicks();
-        HandleViewportMouse();
 
-        if (!m_selectedEntityIds.empty() && Core::Input::IsKeyPressed(VK_DELETE))
+        if (m_isPlaying)
         {
-            for (auto id : m_selectedEntityIds)
-                m_scene.DestroyEntity(id);
-            m_selectedEntityIds.clear();
+            // --- Ð›ÐžÐ“Ð˜ÐšÐ Ð˜Ð“Ð Ð« ---
+
+            for (auto& entity : m_scene.GetEntities()) // Ð¢ÐµÐ¿ÐµÑ€ÑŒ ÑÑ‚Ð¾ Ñ€Ð°Ð±Ð¾Ñ‚Ð°ÐµÑ‚, Ñ‚Ð°Ðº ÐºÐ°Ðº Ð¼Ñ‹ Ð´Ð¾Ð±Ð°Ð²Ð¸Ð»Ð¸ Ð½ÐµÐºÐ¾Ð½ÑÑ‚Ð°Ð½Ñ‚Ð½Ñ‹Ð¹ GetEntities()
+            {
+                if (entity.useGravity)
+                {
+                    entity.velocityY += m_gravity * deltaTime;
+                    entity.transform.position.y += entity.velocityY * deltaTime;
+
+                    // ÐŸÑ€Ð¾ÑÑ‚ÐµÐ¹ÑˆÐ°Ñ ÐºÐ¾Ð»Ð»Ð¸Ð·Ð¸Ñ Ñ "Ð¿Ð¾Ð»Ð¾Ð¼" (ÑƒÑÐ»Ð¾Ð²Ð½Ð°Ñ Ð»Ð¸Ð½Ð¸Ñ Y = 600)
+                    if (entity.transform.position.y + entity.height > 600.0f)
+                    {
+                        entity.transform.position.y = 600.0f - entity.height;
+                        entity.velocityY = 0.0f;
+                    }
+                }
+            }
         }
+        else
+        {
 
-        constexpr float cameraSpeed = 500.0f;
-        if (Core::Input::IsKeyDown('W')) m_camera.y -= cameraSpeed * deltaTime / m_camera.zoom;
-        if (Core::Input::IsKeyDown('S')) m_camera.y += cameraSpeed * deltaTime / m_camera.zoom;
-        if (Core::Input::IsKeyDown('A')) m_camera.x -= cameraSpeed * deltaTime / m_camera.zoom;
-        if (Core::Input::IsKeyDown('D')) m_camera.x += cameraSpeed * deltaTime / m_camera.zoom;
+            // ÐžÐ±Ñ‹Ñ‡Ð½Ð°Ñ Ð»Ð¾Ð³Ð¸ÐºÐ° Ñ€ÐµÐ´Ð°ÐºÑ‚Ð¾Ñ€Ð°
+            
+            HandleViewportMouse();
 
-        const int wheel = Core::Input::GetMouseWheelDelta();
-        if (wheel > 0) m_camera.zoom *= 1.1f;
-        if (wheel < 0) m_camera.zoom /= 1.1f;
-        m_camera.zoom = std::clamp(m_camera.zoom, 0.1f, 10.0f);
+            if (!m_selectedEntityIds.empty() && Core::Input::IsKeyPressed(VK_DELETE))
+            {
+                for (auto id : m_selectedEntityIds)
+                    m_scene.DestroyEntity(id);
+                m_selectedEntityIds.clear();
+            }
+
+            constexpr float cameraSpeed = 500.0f;
+            if (Core::Input::IsKeyDown('W')) m_camera.y -= cameraSpeed * deltaTime / m_camera.zoom;
+            if (Core::Input::IsKeyDown('S')) m_camera.y += cameraSpeed * deltaTime / m_camera.zoom;
+            if (Core::Input::IsKeyDown('A')) m_camera.x -= cameraSpeed * deltaTime / m_camera.zoom;
+            if (Core::Input::IsKeyDown('D')) m_camera.x += cameraSpeed * deltaTime / m_camera.zoom;
+
+            const int wheel = Core::Input::GetMouseWheelDelta();
+            if (wheel > 0) m_camera.zoom *= 1.1f;
+            if (wheel < 0) m_camera.zoom /= 1.1f;
+            m_camera.zoom = std::clamp(m_camera.zoom, 0.1f, 10.0f);
+        }
     }
 
     void OnRender() override
@@ -78,7 +103,7 @@ protected:
 
         if (!m_showStartupMenu)
         {
-            // 1. Îòðèñîâêà ñåòêè
+            // 1. ÐžÑ‚Ñ€Ð¸ÑÐ¾Ð²ÐºÐ° ÑÐµÑ‚ÐºÐ¸
             const Core::Color gridColor(60, 60, 60);
             float halfW = (renderer.GetWidth() / 2.0f) / m_camera.zoom;
             float halfH = (renderer.GetHeight() / 2.0f) / m_camera.zoom;
@@ -95,7 +120,7 @@ protected:
             for (int x = startX; x <= endX; x += (int)CellSize) renderer.DrawLine(m_camera, (float)x, top, (float)x, bottom, gridColor);
             for (int y = startY; y <= endY; y += (int)CellSize) renderer.DrawLine(m_camera, left, (float)y, right, (float)y, gridColor);
 
-            // 2. Îáúåêòû
+            // 2. ÐžÐ±ÑŠÐµÐºÑ‚Ñ‹
             for (const auto& entity : m_scene.GetEntities())
             {
                 if (entity.shape == Core::ShapeType::Circle) {
@@ -108,8 +133,8 @@ protected:
                     renderer.DrawRect(m_camera, entity.transform.position.x, entity.transform.position.y, entity.width, entity.height, entity.color);
                 }
             }
-            // 3. Ïîäñâåòêà
-                        // 3. Ïîäñâåòêà
+            // 3. ÐŸÐ¾Ð´ÑÐ²ÐµÑ‚ÐºÐ°
+                        // 3. ÐŸÐ¾Ð´ÑÐ²ÐµÑ‚ÐºÐ°
             for (Core::EntityId id : m_selectedEntityIds)
             {
                 const Core::Entity* selected = m_scene.FindEntity(id);
@@ -118,18 +143,18 @@ protected:
                     float y = selected->transform.position.y;
                     float w = selected->width;
                     float h = selected->height;
-                    Core::Color selColor(85, 145, 220); // Ñèíèé öâåò
-                    float t = 2.0f / m_camera.zoom; // Òîëùèíà ðàìêè 2 ïèêñåëÿ íà ýêðàíå
+                    Core::Color selColor(85, 145, 220); // Ð¡Ð¸Ð½Ð¸Ð¹ Ñ†Ð²ÐµÑ‚
+                    float t = 2.0f / m_camera.zoom; // Ð¢Ð¾Ð»Ñ‰Ð¸Ð½Ð° Ñ€Ð°Ð¼ÐºÐ¸ 2 Ð¿Ð¸ÐºÑÐµÐ»Ñ Ð½Ð° ÑÐºÑ€Ð°Ð½Ðµ
 
-                    // Ðèñóåì ðàìêó (4 ïðÿìîóãîëüíèêà ïî êðàÿì)
-                    renderer.DrawRect(m_camera, x, y, w, t, selColor); // Âåðõ
-                    renderer.DrawRect(m_camera, x, y + h - t, w, t, selColor); // Íèç
-                    renderer.DrawRect(m_camera, x, y, t, h, selColor); // Ëåâî
-                    renderer.DrawRect(m_camera, x + w - t, y, t, h, selColor); // Ïðàâî
+                    // Ð Ð¸ÑÑƒÐµÐ¼ Ñ€Ð°Ð¼ÐºÑƒ (4 Ð¿Ñ€ÑÐ¼Ð¾ÑƒÐ³Ð¾Ð»ÑŒÐ½Ð¸ÐºÐ° Ð¿Ð¾ ÐºÑ€Ð°ÑÐ¼)
+                    renderer.DrawRect(m_camera, x, y, w, t, selColor); // Ð’ÐµÑ€Ñ…
+                    renderer.DrawRect(m_camera, x, y + h - t, w, t, selColor); // ÐÐ¸Ð·
+                    renderer.DrawRect(m_camera, x, y, t, h, selColor); // Ð›ÐµÐ²Ð¾
+                    renderer.DrawRect(m_camera, x + w - t, y, t, h, selColor); // ÐŸÑ€Ð°Ð²Ð¾
                 }
             }
 
-            // 4. Ðàìêà âûäåëåíèÿ (òåïåðü â ÌÈÐÎÂÛÕ êîîðäèíàòàõ)
+            // 4. Ð Ð°Ð¼ÐºÐ° Ð²Ñ‹Ð´ÐµÐ»ÐµÐ½Ð¸Ñ (Ñ‚ÐµÐ¿ÐµÑ€ÑŒ Ð² ÐœÐ˜Ð ÐžÐ’Ð«Ð¥ ÐºÐ¾Ð¾Ñ€Ð´Ð¸Ð½Ð°Ñ‚Ð°Ñ…)
             if (m_isMarqueeSelecting)
             {
                 float minX = std::min(m_marqueeStartWorldX, m_marqueeCurrentWorldX);
@@ -138,12 +163,12 @@ protected:
                 float maxY = std::max(m_marqueeStartWorldY, m_marqueeCurrentWorldY);
 
                 Core::Color marqueeColor(85, 145, 220);
-                float t = 2.0f / m_camera.zoom; // Òîëùèíà ðàìêè 2 ïèêñåëÿ íà ýêðàíå
+                float t = 2.0f / m_camera.zoom; // Ð¢Ð¾Ð»Ñ‰Ð¸Ð½Ð° Ñ€Ð°Ð¼ÐºÐ¸ 2 Ð¿Ð¸ÐºÑÐµÐ»Ñ Ð½Ð° ÑÐºÑ€Ð°Ð½Ðµ
 
-                renderer.DrawRect(m_camera, minX, minY, maxX - minX, t, marqueeColor); // Âåðõ
-                renderer.DrawRect(m_camera, minX, maxY - t, maxX - minX, t, marqueeColor); // Íèç
-                renderer.DrawRect(m_camera, minX, minY, t, maxY - minY, marqueeColor); // Ëåâî
-                renderer.DrawRect(m_camera, maxX - t, minY, t, maxY - minY, marqueeColor); // Ïðàâî
+                renderer.DrawRect(m_camera, minX, minY, maxX - minX, t, marqueeColor); // Ð’ÐµÑ€Ñ…
+                renderer.DrawRect(m_camera, minX, maxY - t, maxX - minX, t, marqueeColor); // ÐÐ¸Ð·
+                renderer.DrawRect(m_camera, minX, minY, t, maxY - minY, marqueeColor); // Ð›ÐµÐ²Ð¾
+                renderer.DrawRect(m_camera, maxX - t, minY, t, maxY - minY, marqueeColor); // ÐŸÑ€Ð°Ð²Ð¾
             }
         }
 
@@ -159,9 +184,9 @@ private:
 
     int m_gridRadius = 10;
 
-    // Ñîñòîÿíèÿ ìåíþ ñîçäàíèÿ ñåòêè
+    // Ð¡Ð¾ÑÑ‚Ð¾ÑÐ½Ð¸Ñ Ð¼ÐµÐ½ÑŽ ÑÐ¾Ð·Ð´Ð°Ð½Ð¸Ñ ÑÐµÑ‚ÐºÐ¸
     bool m_showStartupMenu = true;
-    int m_inputRadius = 10; // Òî, ÷òî êðóòèì â ìåíþ
+    int m_inputRadius = 10; // Ð¢Ð¾, Ñ‡Ñ‚Ð¾ ÐºÑ€ÑƒÑ‚Ð¸Ð¼ Ð² Ð¼ÐµÐ½ÑŽ
 
     bool m_isDragging = false;
     float m_dragStartWorldX = 0.0f, m_dragStartWorldY = 0.0f;
@@ -171,6 +196,9 @@ private:
     bool m_isMarqueeSelecting = false;
     float m_marqueeStartWorldX = 0.0f, m_marqueeStartWorldY = 0.0f;
     float m_marqueeCurrentWorldX = 0.0f, m_marqueeCurrentWorldY = 0.0f;
+
+    bool m_isPlaying = false;
+    float m_gravity = 1500.0f;
 
     float GetLeftPanelWidth() const { return std::min(220.0f, GetRenderer().GetWidth() * 0.25f); }
     float GetHierarchyStartY() const { return TopBarHeight + 32.0f + 8.0f; }
@@ -206,7 +234,7 @@ private:
         }
     }
 
-    // --- ËÎÃÈÊÀ ÑÒÀÐÒÎÂÎÃÎ ÌÅÍÞ ---
+    // --- Ð›ÐžÐ“Ð˜ÐšÐ Ð¡Ð¢ÐÐ Ð¢ÐžÐ’ÐžÐ“Ðž ÐœÐ•ÐÐ® ---
     void HandleStartupMenu()
     {
         if (!Core::Input::IsLeftMouseButtonPressed()) return;
@@ -218,26 +246,27 @@ private:
         float cx = width / 2.0f;
         float cy = height / 2.0f;
 
-        // Êíîïêà "-"
+        // ÐšÐ½Ð¾Ð¿ÐºÐ° "-"
         if (mx >= cx - 80 && mx <= cx - 40 && my >= cy - 20 && my <= cy + 20) {
             if (m_inputRadius > 1) m_inputRadius--;
         }
-        // Êíîïêà "+"
+        // ÐšÐ½Ð¾Ð¿ÐºÐ° "+"
         if (mx >= cx + 40 && mx <= cx + 80 && my >= cy - 20 && my <= cy + 20) {
             if (m_inputRadius < 50) m_inputRadius++;
         }
-        // Êíîïêà "Ñîçäàòü"
+        // ÐšÐ½Ð¾Ð¿ÐºÐ° "Ð¡Ð¾Ð·Ð´Ð°Ñ‚ÑŒ"
         if (mx >= cx - 80 && mx <= cx + 80 && my >= cy + 50 && my <= cy + 90) {
             m_gridRadius = m_inputRadius;
-            m_scene.Clear(); // Î÷èùàåì ñöåíó
+            m_scene.Clear(); // ÐžÑ‡Ð¸Ñ‰Ð°ÐµÐ¼ ÑÑ†ÐµÐ½Ñƒ
             RegenerateScene();
-            m_showStartupMenu = false; // Çàêðûâàåì ìåíþ
+            m_showStartupMenu = false; // Ð—Ð°ÐºÑ€Ñ‹Ð²Ð°ÐµÐ¼ Ð¼ÐµÐ½ÑŽ
         }
     }
 
-    // --- ËÎÃÈÊÀ ÌÛØÈ ÂÎ ÂÜÞÏÎÐÒÅ ---
+    // --- Ð›ÐžÐ“Ð˜ÐšÐ ÐœÐ«Ð¨Ð˜ Ð’Ðž Ð’Ð¬Ð®ÐŸÐžÐ Ð¢Ð• ---
     void HandleViewportMouse()
     {
+        if (m_isPlaying) return;
         float mouseX, mouseY;
         Core::Input::GetMousePosition(mouseX, mouseY);
         const float w = (float)GetRenderer().GetWidth();
@@ -245,7 +274,7 @@ private:
 
         if (Core::Input::IsLeftMouseButtonPressed())
         {
-            // Åñëè êëèê áûë ïî UI (ëåâàÿ ïàíåëü, ïðàâàÿ ïàíåëü, âåðõ, íèç) — íè÷åãî íå äåëàåì
+            // Ð•ÑÐ»Ð¸ ÐºÐ»Ð¸Ðº Ð±Ñ‹Ð» Ð¿Ð¾ UI (Ð»ÐµÐ²Ð°Ñ Ð¿Ð°Ð½ÐµÐ»ÑŒ, Ð¿Ñ€Ð°Ð²Ð°Ñ Ð¿Ð°Ð½ÐµÐ»ÑŒ, Ð²ÐµÑ€Ñ…, Ð½Ð¸Ð·) â€” Ð½Ð¸Ñ‡ÐµÐ³Ð¾ Ð½Ðµ Ð´ÐµÐ»Ð°ÐµÐ¼
             if (!IsMouseOverViewport(mouseX, mouseY))
                 return;
 
@@ -389,19 +418,19 @@ private:
         Core::Input::GetMousePosition(mx, my);
         const float width = (float)GetRenderer().GetWidth();
 
-        // Åñëè êëèê áûë â âåðõíåé ïàíåëè (âûñîòà 36), îáðàáàòûâàåì òîëüêî êíîïêè UI
+        // Ð•ÑÐ»Ð¸ ÐºÐ»Ð¸Ðº Ð±Ñ‹Ð» Ð² Ð²ÐµÑ€Ñ…Ð½ÐµÐ¹ Ð¿Ð°Ð½ÐµÐ»Ð¸ (Ð²Ñ‹ÑÐ¾Ñ‚Ð° 36), Ð¾Ð±Ñ€Ð°Ð±Ð°Ñ‚Ñ‹Ð²Ð°ÐµÐ¼ Ñ‚Ð¾Ð»ÑŒÐºÐ¾ ÐºÐ½Ð¾Ð¿ÐºÐ¸ UI
         if (my >= 0.0f && my <= TopBarHeight)
         {
-            // Êíîïêè âûáîðà ôèãóðû
+            // ÐšÐ½Ð¾Ð¿ÐºÐ¸ Ð²Ñ‹Ð±Ð¾Ñ€Ð° Ñ„Ð¸Ð³ÑƒÑ€Ñ‹
             if (mx >= 300.0f && mx <= 360.0f) m_currentShapeType = Core::ShapeType::Rectangle;
             if (mx >= 365.0f && mx <= 425.0f) m_currentShapeType = Core::ShapeType::Circle;
             if (mx >= 430.0f && mx <= 490.0f) m_currentShapeType = Core::ShapeType::Triangle;
 
-            // Êíîïêè Save è Load
+            // ÐšÐ½Ð¾Ð¿ÐºÐ¸ Save Ð¸ Load
             if (mx >= width - 200.0f && mx <= width - 110.0f) SaveScene("level.kjarn");
             if (mx >= width - 100.0f && mx <= width - 10.0f) LoadScene("level.kjarn");
 
-            // Êíîïêà + Add Block
+            // ÐšÐ½Ð¾Ð¿ÐºÐ° + Add Block
             if (mx >= 500.0f && mx <= 600.0f)
             {
                 Core::EntityId newId = m_scene.CreateEntity();
@@ -426,10 +455,35 @@ private:
                     m_selectedEntityIds = { newId };
                 }
             }
-            return; // Âûõîäèì, ÷òîáû êëèê ïî âåðõíåé ïàíåëè íå ñðàáîòàë âî âüþïîðòå
+
+            // ÐšÐ½Ð¾Ð¿ÐºÐ° Play/Stop
+            if (mx >= 700.0f && mx <= 780.0f && my >= 6.0f && my <= 30.0f)
+            {
+                if (!m_isPlaying)
+                {
+                    SaveScene("temp_play.kjarn");
+                    m_isPlaying = true;
+                    m_selectedEntityIds.clear();
+
+                    for (auto& entity : m_scene.GetEntities())
+                    {
+                        // Ð•ÑÐ»Ð¸ ÑÑ‚Ð¾ Ð½Ðµ ÑÐµÑ€Ñ‹Ð¹ ÐºÐ²Ð°Ð´Ñ€Ð°Ñ‚ (Ð½Ð°ÑˆÐ° ÑÐµÑ‚ÐºÐ°), Ð²ÐºÐ»ÑŽÑ‡Ð°ÐµÐ¼ Ð³Ñ€Ð°Ð²Ð¸Ñ‚Ð°Ñ†Ð¸ÑŽ
+                        if (!(entity.color.r == 80 || entity.color.r == 100)) {
+                            entity.useGravity = true;
+                        }
+                    }
+                }
+                else
+                {
+                    LoadScene("temp_play.kjarn");
+                    m_isPlaying = false;
+                }
+            }
+
+            return; // Ð’Ñ‹Ñ…Ð¾Ð´Ð¸Ð¼, Ñ‡Ñ‚Ð¾Ð±Ñ‹ ÐºÐ»Ð¸Ðº Ð¿Ð¾ Ð²ÐµÑ€Ñ…Ð½ÐµÐ¹ Ð¿Ð°Ð½ÐµÐ»Ð¸ Ð½Ðµ ÑÑ€Ð°Ð±Ð¾Ñ‚Ð°Ð» Ð²Ð¾ Ð²ÑŒÑŽÐ¿Ð¾Ñ€Ñ‚Ðµ
         }
 
-        // Åñëè êëèê áûë ÍÅ â âåðõíåé ïàíåëè, ïðîâåðÿåì êëèêè ïî èåðàðõèè
+        // Ð•ÑÐ»Ð¸ ÐºÐ»Ð¸Ðº Ð±Ñ‹Ð» ÐÐ• Ð² Ð²ÐµÑ€Ñ…Ð½ÐµÐ¹ Ð¿Ð°Ð½ÐµÐ»Ð¸, Ð¿Ñ€Ð¾Ð²ÐµÑ€ÑÐµÐ¼ ÐºÐ»Ð¸ÐºÐ¸ Ð¿Ð¾ Ð¸ÐµÑ€Ð°Ñ€Ñ…Ð¸Ð¸
         HandleHierarchyClick();
     }
 
@@ -438,7 +492,7 @@ private:
         m_hierarchyEntityIds.clear();
         int gridWidth = m_gridRadius * 2 + 1;
 
-        // Áåðåì òîëüêî öåíòðàëüíûå 25 îáúåêòîâ äëÿ ñïèñêà
+        // Ð‘ÐµÑ€ÐµÐ¼ Ñ‚Ð¾Ð»ÑŒÐºÐ¾ Ñ†ÐµÐ½Ñ‚Ñ€Ð°Ð»ÑŒÐ½Ñ‹Ðµ 25 Ð¾Ð±ÑŠÐµÐºÑ‚Ð¾Ð² Ð´Ð»Ñ ÑÐ¿Ð¸ÑÐºÐ°
         for (int i = -2; i <= 2; ++i) {
             for (int j = -2; j <= 2; ++j) {
                 std::size_t index = (std::size_t)((i + m_gridRadius) * gridWidth + (j + m_gridRadius));
@@ -492,7 +546,7 @@ private:
             if (entity.shape == Core::ShapeType::Circle) typeStr = "CIRCLE";
             else if (entity.shape == Core::ShapeType::Triangle) typeStr = "TRIANGLE";
 
-            // Ïèøåì òèï, êîîðäèíàòû, ðàçìåðû è öâåò
+            // ÐŸÐ¸ÑˆÐµÐ¼ Ñ‚Ð¸Ð¿, ÐºÐ¾Ð¾Ñ€Ð´Ð¸Ð½Ð°Ñ‚Ñ‹, Ñ€Ð°Ð·Ð¼ÐµÑ€Ñ‹ Ð¸ Ñ†Ð²ÐµÑ‚
             file << typeStr << " "
                 << entity.transform.position.x << " "
                 << entity.transform.position.y << " "
@@ -515,7 +569,7 @@ private:
         m_selectedEntityIds.clear();
 
         std::string line;
-        std::getline(file, line); // ×èòàåì çàãîëîâîê "KJARN_SCENE_V1"
+        std::getline(file, line); // Ð§Ð¸Ñ‚Ð°ÐµÐ¼ Ð·Ð°Ð³Ð¾Ð»Ð¾Ð²Ð¾Ðº "KJARN_SCENE_V1"
 
         while (std::getline(file, line))
         {
@@ -543,7 +597,7 @@ private:
             }
         }
         file.close();
-        BuildHierarchy(); // Íóæíî ïåðåñîáðàòü ñïèñîê èåðàðõèè (âûíåñè ýòîò êîä èç RegenerateScene â îòäåëüíûé ìåòîä)
+        BuildHierarchy(); // ÐÑƒÐ¶Ð½Ð¾ Ð¿ÐµÑ€ÐµÑÐ¾Ð±Ñ€Ð°Ñ‚ÑŒ ÑÐ¿Ð¸ÑÐ¾Ðº Ð¸ÐµÑ€Ð°Ñ€Ñ…Ð¸Ð¸ (Ð²Ñ‹Ð½ÐµÑÐ¸ ÑÑ‚Ð¾Ñ‚ ÐºÐ¾Ð´ Ð¸Ð· RegenerateScene Ð² Ð¾Ñ‚Ð´ÐµÐ»ÑŒÐ½Ñ‹Ð¹ Ð¼ÐµÑ‚Ð¾Ð´)
     }
 
     void BuildEditorUI()
@@ -561,10 +615,10 @@ private:
 
         if (m_showStartupMenu)
         {
-            // Çàòåìíåíèå ôîíà
+            // Ð—Ð°Ñ‚ÐµÐ¼Ð½ÐµÐ½Ð¸Ðµ Ñ„Ð¾Ð½Ð°
             m_uiDrawList.AddFillRect({ 0, 0, width, height }, { 20, 22, 26, 200 });
 
-            // Îêíî ïî öåíòðó
+            // ÐžÐºÐ½Ð¾ Ð¿Ð¾ Ñ†ÐµÐ½Ñ‚Ñ€Ñƒ
             float cx = width / 2.0f, cy = height / 2.0f;
             m_uiDrawList.AddFillRect({ cx - 150, cy - 100, 300, 220 }, panel);
             m_uiDrawList.AddFillRect({ cx - 150, cy - 100, 300, 30 }, panelHeader);
@@ -573,33 +627,33 @@ private:
             m_uiDrawList.AddText({ cx - 60, cy - 40 }, "Grid Radius:", text, 14.0f);
             m_uiDrawList.AddText({ cx - 5, cy - 15 }, std::to_string(m_inputRadius), accent, 18.0f);
 
-            // Êíîïêè + è -
+            // ÐšÐ½Ð¾Ð¿ÐºÐ¸ + Ð¸ -
             m_uiDrawList.AddFillRect({ cx - 80, cy - 20, 40, 30 }, border);
             m_uiDrawList.AddText({ cx - 65, cy - 15 }, "-", text, 18.0f);
 
             m_uiDrawList.AddFillRect({ cx + 40, cy - 20, 40, 30 }, border);
             m_uiDrawList.AddText({ cx + 55, cy - 15 }, "+", text, 18.0f);
 
-            // Êíîïêà Ñîçäàòü
+            // ÐšÐ½Ð¾Ð¿ÐºÐ° Ð¡Ð¾Ð·Ð´Ð°Ñ‚ÑŒ
             m_uiDrawList.AddFillRect({ cx - 80, cy + 50, 160, 40 }, accent);
             m_uiDrawList.AddText({ cx - 50, cy + 60 }, "CREATE GRID", { 255, 255, 255, 255 }, 14.0f);
         }
         else
         {
-            // --- ÑÒÀÍÄÀÐÒÍÛÉ ÈÍÒÅÐÔÅÉÑ ---
+            // --- Ð¡Ð¢ÐÐÐ”ÐÐ Ð¢ÐÐ«Ð™ Ð˜ÐÐ¢Ð•Ð Ð¤Ð•Ð™Ð¡ ---
             m_uiDrawList.AddFillRect({ 0.0f, 0.0f, width, TopBarHeight }, panelHeader);
             m_uiDrawList.AddText({ 14.0f, 9.0f }, "KJARN", accent, 17.0f);
             m_uiDrawList.AddText({ 100.0f, 11.0f }, "File    Edit    View    Project    Build    Help", text, 13.0f);
             m_uiDrawList.AddFillRect({ 500.0f, 6.0f, 100.0f, 24.0f }, border);
 
-            // Êíîïêè Save è Load ñïðàâà
+            // ÐšÐ½Ð¾Ð¿ÐºÐ¸ Save Ð¸ Load ÑÐ¿Ñ€Ð°Ð²Ð°
             m_uiDrawList.AddFillRect({ width - 200.0f, 6.0f, 90.0f, 24.0f }, border);
             m_uiDrawList.AddText({ width - 185.0f, 10.0f }, "Save", text, 12.0f);
 
             m_uiDrawList.AddFillRect({ width - 100.0f, 6.0f, 90.0f, 24.0f }, border);
             m_uiDrawList.AddText({ width - 85.0f, 10.0f }, "Load", text, 12.0f);
 
-            // Êíîïêè âûáîðà ôèãóðû
+            // ÐšÐ½Ð¾Ð¿ÐºÐ¸ Ð²Ñ‹Ð±Ð¾Ñ€Ð° Ñ„Ð¸Ð³ÑƒÑ€Ñ‹
             Kjarn::UI::UIColor activeColor = accent;
             Kjarn::UI::UIColor inactiveColor = border;
 
@@ -620,6 +674,17 @@ private:
             m_uiDrawList.AddText({ 12.0f, TopBarHeight + 8.0f }, "SCENE HIERARCHY", text, 12.0f);
             m_uiDrawList.AddLine({ leftPanelWidth, TopBarHeight }, { leftPanelWidth, height - BottomBarHeight }, border);
             m_uiDrawList.AddText({ 14.0f, TopBarHeight + 40.0f }, "Scene", text, 13.0f);
+
+
+            // ÐšÐ½Ð¾Ð¿ÐºÐ° PLAY / STOP
+            if (!m_isPlaying) {
+                m_uiDrawList.AddFillRect({ 700.0f, 6.0f, 80.0f, 24.0f }, { 80, 180, 80, 255 }); // Ð—ÐµÐ»ÐµÐ½Ð°Ñ
+                m_uiDrawList.AddText({ 720.0f, 10.0f }, "â–¶ PLAY", text, 12.0f);
+            }
+            else {
+                m_uiDrawList.AddFillRect({ 700.0f, 6.0f, 80.0f, 24.0f }, { 200, 60, 60, 255 }); // ÐšÑ€Ð°ÑÐ½Ð°Ñ
+                m_uiDrawList.AddText({ 720.0f, 10.0f }, "â–  STOP", text, 12.0f);
+            }
 
             const std::size_t visibleCount = GetVisibleHierarchyCount();
             for (std::size_t i = 0; i < visibleCount; ++i) {

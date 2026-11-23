@@ -35,6 +35,12 @@ namespace Core {
             return worldX >= x && worldX <= x + width &&
                 worldY >= y && worldY <= y + height;
         }
+
+
+        //ÔÈÇÈÊÀ
+        float velocityX = 0.0f;
+        float velocityY = 0.0f;
+        bool useGravity = false;
     };
 
 }
