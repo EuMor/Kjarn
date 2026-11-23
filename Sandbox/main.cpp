@@ -15,6 +15,8 @@
 #include "Sandbox/UI/Rendering/UIDrawList.h"
 #include "Sandbox/UI/Rendering/Win32/GdiUIDrawBackend.h"
 
+#include "Core/Physics.h"
+
 #include <algorithm>
 #include <cstddef>
 #include <string>
@@ -42,29 +44,52 @@ public:
 protected:
     void OnUpdate(float deltaTime) override
     {
-        // Если открыто стартовое меню, блокируем остальное управление
-        if (m_showStartupMenu)
-        {
-            HandleStartupMenu();
-            return;
-        }
+        if (m_showStartupMenu) { HandleStartupMenu(); return; }
+
         HandleUIClicks();
 
         if (m_isPlaying)
         {
             // --- ЛОГИКА ИГРЫ ---
+            Core::Entity* player = nullptr;
 
-            for (auto& entity : m_scene.GetEntities()) // Теперь это работает, так как мы добавили неконстантный GetEntities()
+            // Ищем игрока
+            for (auto& entity : m_scene.GetEntities()) {
+                if (entity.isPlayer) { player = &entity; break; }
+            }
+
+            // Управление игроком
+            if (player) {
+                constexpr float moveSpeed = 500.0f;
+                constexpr float jumpForce = -800.0f;
+
+                if (Core::Input::IsKeyDown('A')) player->velocityX = -moveSpeed;
+                else if (Core::Input::IsKeyDown('D')) player->velocityX = moveSpeed;
+                else player->velocityX = 0;
+
+                if (Core::Input::IsKeyDown(VK_SPACE) && player->isGrounded) {
+                    player->velocityY = jumpForce;
+                }
+
+                // Гравитация для игрока
+                player->velocityY += m_gravity * deltaTime;
+                if (player->velocityY > 1500.0f) player->velocityY = 1500.0f; // Макс скорость падения
+
+                // Разрешаем коллизии
+                Core::Physics::ResolvePlayerCollision(*player, m_scene.GetEntities(), deltaTime);
+            }
+
+            // Гравитация для остальных динамических объектов (не игрока и не статики)
+            for (auto& entity : m_scene.GetEntities())
             {
-                if (entity.useGravity)
+                if (entity.useGravity && !entity.isPlayer && !entity.isStatic)
                 {
                     entity.velocityY += m_gravity * deltaTime;
                     entity.transform.position.y += entity.velocityY * deltaTime;
 
-                    // Простейшая коллизия с "полом" (условная линия Y = 600)
-                    if (entity.transform.position.y + entity.height > 600.0f)
-                    {
-                        entity.transform.position.y = 600.0f - entity.height;
+                    // Простая остановка на "полу", чтобы не улетали в бесконечность
+                    if (entity.transform.position.y + entity.height > 1000.0f) {
+                        entity.transform.position.y = 1000.0f - entity.height;
                         entity.velocityY = 0.0f;
                     }
                 }
@@ -72,15 +97,12 @@ protected:
         }
         else
         {
-
-            // Обычная логика редактора
-            
+            // --- ЛОГИКА РЕДАКТОРА ---
             HandleViewportMouse();
 
             if (!m_selectedEntityIds.empty() && Core::Input::IsKeyPressed(VK_DELETE))
             {
-                for (auto id : m_selectedEntityIds)
-                    m_scene.DestroyEntity(id);
+                for (auto id : m_selectedEntityIds) m_scene.DestroyEntity(id);
                 m_selectedEntityIds.clear();
             }
 
@@ -430,6 +452,25 @@ private:
             if (mx >= width - 200.0f && mx <= width - 110.0f) SaveScene("level.kjarn");
             if (mx >= width - 100.0f && mx <= width - 10.0f) LoadScene("level.kjarn");
 
+            // Кнопка Spawn Player
+            if (mx >= 610.0f && mx <= 690.0f)
+            {
+                Core::EntityId newId = m_scene.CreateEntity();
+                Core::Entity* newEntity = m_scene.FindEntity(newId);
+                if (newEntity)
+                {
+                    newEntity->width = 40.0f; // Игрок чуть меньше кубика
+                    newEntity->height = 60.0f;
+                    newEntity->transform.position.x = m_camera.x;
+                    newEntity->transform.position.y = m_camera.y - 200.0f; // Чуть выше камеры
+                    newEntity->color = Core::Color(50, 150, 255); // Синий
+                    newEntity->shape = Core::ShapeType::Rectangle; // Или сделай ему отдельную форму
+                    newEntity->isPlayer = true;
+                    newEntity->isStatic = false;
+                    m_selectedEntityIds = { newId };
+                }
+            }
+
             // Кнопка + Add Block
             if (mx >= 500.0f && mx <= 600.0f)
             {
@@ -467,8 +508,8 @@ private:
 
                     for (auto& entity : m_scene.GetEntities())
                     {
-                        // Если это не серый квадрат (наша сетка), включаем гравитацию
-                        if (!(entity.color.r == 80 || entity.color.r == 100)) {
+                        // Включаем гравитацию для всех, КРОМЕ статичных объектов
+                        if (!entity.isStatic) {
                             entity.useGravity = true;
                         }
                     }
@@ -526,6 +567,7 @@ private:
                 entity->width = squareSize;
                 entity->height = squareSize;
                 entity->color = color;
+                entity->isStatic = true;
             }
         }
 
@@ -675,6 +717,9 @@ private:
             m_uiDrawList.AddLine({ leftPanelWidth, TopBarHeight }, { leftPanelWidth, height - BottomBarHeight }, border);
             m_uiDrawList.AddText({ 14.0f, TopBarHeight + 40.0f }, "Scene", text, 13.0f);
 
+
+            m_uiDrawList.AddFillRect({ 610.0f, 6.0f, 80.0f, 24.0f }, { 50, 150, 255, 255 }); // Синяя
+            m_uiDrawList.AddText({ 618.0f, 10.0f }, "+ Player", text, 12.0f);
 
             // Кнопка PLAY / STOP
             if (!m_isPlaying) {

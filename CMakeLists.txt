@@ -38,7 +38,7 @@ add_library(KjarnCore STATIC
     Core/src/Application.cpp
     Core/src/Time.cpp
     Core/src/Camera.cpp
-  "Core/include/Core/Scene/Scene.h"  "Core/include/Core/Scene/EntityId.h" "Core/include/Core/Scene/Transform.h" "Core/src/Scene/Scene.cpp")
+  "Core/include/Core/Scene/Scene.h"  "Core/include/Core/Scene/EntityId.h" "Core/include/Core/Scene/Transform.h" "Core/src/Scene/Scene.cpp" "Core/include/Core/Physics.h")
 
 add_library(Kjarn::Core ALIAS KjarnCore)
 
@@ -59,7 +59,7 @@ target_compile_options(KjarnCore
 add_library(KjarnPlatformWin32 STATIC
     Platform/Win32/Window.cpp
     Platform/Win32/Input.cpp
-  "Core/include/Core/Scene/Scene.h"  "Core/include/Core/Scene/EntityId.h" "Core/include/Core/Scene/Transform.h" "Core/src/Scene/Scene.cpp")
+  "Core/include/Core/Scene/Scene.h"  "Core/include/Core/Scene/EntityId.h" "Core/include/Core/Scene/Transform.h" "Core/src/Scene/Scene.cpp" "Core/include/Core/Physics.h")
 
 add_library(Kjarn::PlatformWin32 ALIAS KjarnPlatformWin32)
 
@@ -87,7 +87,7 @@ target_compile_options(KjarnPlatformWin32
 
 add_library(KjarnRendererGDI STATIC
     Renderer/Win32/GdiRenderer.cpp
- "Core/include/Core/Scene/Scene.h"  "Core/include/Core/Scene/EntityId.h" "Core/include/Core/Scene/Transform.h" "Core/src/Scene/Scene.cpp")
+ "Core/include/Core/Scene/Scene.h"  "Core/include/Core/Scene/EntityId.h" "Core/include/Core/Scene/Transform.h" "Core/src/Scene/Scene.cpp" "Core/include/Core/Physics.h")
 
 add_library(Kjarn::RendererGDI ALIAS KjarnRendererGDI)
 
@@ -117,7 +117,7 @@ target_compile_options(KjarnRendererGDI
 add_library(KjarnSandboxUI STATIC
     Sandbox/UI/Rendering/UIDrawList.cpp
     Sandbox/UI/Rendering/Win32/GdiUIDrawBackend.cpp
- "Core/include/Core/Scene/Scene.h"  "Core/include/Core/Scene/EntityId.h" "Core/include/Core/Scene/Transform.h" "Core/src/Scene/Scene.cpp")
+ "Core/include/Core/Scene/Scene.h"  "Core/include/Core/Scene/EntityId.h" "Core/include/Core/Scene/Transform.h" "Core/src/Scene/Scene.cpp" "Core/include/Core/Physics.h")
 
 add_library(Kjarn::SandboxUI ALIAS KjarnSandboxUI)
 
@@ -143,7 +143,7 @@ target_compile_options(KjarnSandboxUI
 
 add_executable(KjarnSandbox
     Sandbox/main.cpp
- "Core/include/Core/Scene/Scene.h"  "Core/include/Core/Scene/EntityId.h" "Core/include/Core/Scene/Transform.h" "Core/src/Scene/Scene.cpp")
+ "Core/include/Core/Scene/Scene.h"  "Core/include/Core/Scene/EntityId.h" "Core/include/Core/Scene/Transform.h" "Core/src/Scene/Scene.cpp" "Core/include/Core/Physics.h")
 
 target_link_libraries(KjarnSandbox
     PRIVATE

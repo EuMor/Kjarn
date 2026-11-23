@@ -41,6 +41,10 @@ namespace Core {
         float velocityX = 0.0f;
         float velocityY = 0.0f;
         bool useGravity = false;
+        bool isStatic = false;
+
+        bool isGrounded = false;
+        bool isPlayer = false;
     };
 
 }
