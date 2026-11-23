@@ -44,57 +44,72 @@ public:
 protected:
     void OnUpdate(float deltaTime) override
     {
-        if (m_showStartupMenu) { HandleStartupMenu(); return; }
+        if (m_showStartupMenu)
+        {
+            HandleStartupMenu();
+            return;
+        }
 
-        HandleUIClicks();
-
+        // Если уже находимся в игровом режиме.
         if (m_isPlaying)
         {
-            // --- ЛОГИКА ИГРЫ ---
-            Core::Entity* player = nullptr;
-            for (auto& entity : m_scene.GetEntities()) {
-                if (entity.isPlayer) { player = &entity; break; }
-            }
+            HandlePlayModeInput();
 
-            // Управление игроком
-            if (player) {
-                constexpr float moveSpeed = 500.0f;
-                constexpr float jumpForce = -800.0f;
+            if (m_isPlaying)
+                UpdateRuntime(deltaTime);
 
-                if (Core::Input::IsKeyDown('A')) player->velocityX = -moveSpeed;
-                else if (Core::Input::IsKeyDown('D')) player->velocityX = moveSpeed;
-                else player->velocityX = 0;
-
-                if (Core::Input::IsKeyDown(VK_SPACE) && player->isGrounded) {
-                    player->velocityY = jumpForce;
-                }
-            }
-
-            // Обновляем физику для ВСЕЙ сцены сразу (игрок, ящики, всё падает и стакается)
-            Core::Physics::UpdateScene(m_scene.GetEntities(), deltaTime, m_gravity);
+            return;
         }
-        else
+
+        // Обрабатываем редакторский интерфейс.
+        HandleUIClicks();
+
+        // Возможно, пользователь только что нажал PLAY.
+        if (m_isPlaying)
         {
-            // --- ЛОГИКА РЕДАКТОРА ---
-            HandleViewportMouse();
-
-            if (!m_selectedEntityIds.empty() && Core::Input::IsKeyPressed(VK_DELETE))
-            {
-                for (auto id : m_selectedEntityIds) m_scene.DestroyEntity(id);
-                m_selectedEntityIds.clear();
-            }
-
-            constexpr float cameraSpeed = 500.0f;
-            if (Core::Input::IsKeyDown('W')) m_camera.y -= cameraSpeed * deltaTime / m_camera.zoom;
-            if (Core::Input::IsKeyDown('S')) m_camera.y += cameraSpeed * deltaTime / m_camera.zoom;
-            if (Core::Input::IsKeyDown('A')) m_camera.x -= cameraSpeed * deltaTime / m_camera.zoom;
-            if (Core::Input::IsKeyDown('D')) m_camera.x += cameraSpeed * deltaTime / m_camera.zoom;
-
-            const int wheel = Core::Input::GetMouseWheelDelta();
-            if (wheel > 0) m_camera.zoom *= 1.1f;
-            if (wheel < 0) m_camera.zoom /= 1.1f;
-            m_camera.zoom = std::clamp(m_camera.zoom, 0.1f, 10.0f);
+            UpdateRuntime(deltaTime);
+            return;
         }
+
+        // Далее работает только редактор.
+        HandleViewportMouse();
+
+        if (!m_selectedEntityIds.empty() &&
+            Core::Input::IsKeyPressed(VK_DELETE))
+        {
+            for (auto id : m_selectedEntityIds)
+                m_scene.DestroyEntity(id);
+
+            m_selectedEntityIds.clear();
+        }
+
+        constexpr float cameraSpeed = 500.0f;
+
+        if (Core::Input::IsKeyDown('W'))
+            m_camera.y -= cameraSpeed * deltaTime / m_camera.zoom;
+
+        if (Core::Input::IsKeyDown('S'))
+            m_camera.y += cameraSpeed * deltaTime / m_camera.zoom;
+
+        if (Core::Input::IsKeyDown('A'))
+            m_camera.x -= cameraSpeed * deltaTime / m_camera.zoom;
+
+        if (Core::Input::IsKeyDown('D'))
+            m_camera.x += cameraSpeed * deltaTime / m_camera.zoom;
+
+        const int wheel = Core::Input::GetMouseWheelDelta();
+
+        if (wheel > 0)
+            m_camera.zoom *= 1.1f;
+
+        if (wheel < 0)
+            m_camera.zoom /= 1.1f;
+
+        m_camera.zoom = std::clamp(
+            m_camera.zoom,
+            0.1f,
+            10.0f
+        );
     }
 
     void OnRender() override
@@ -121,7 +136,9 @@ protected:
             for (int y = startY; y <= endY; y += (int)CellSize) renderer.DrawLine(m_camera, left, (float)y, right, (float)y, gridColor);
 
             // 2. Объекты
-            for (const auto& entity : m_scene.GetEntities())
+            const Core::Scene& activeScene = GetActiveScene();
+
+            for (const auto& entity : activeScene.GetEntities())
             {
                 if (entity.shape == Core::ShapeType::Circle) {
                     renderer.DrawCircle(m_camera, entity.transform.position.x, entity.transform.position.y, entity.width, entity.height, entity.color);
@@ -204,6 +221,16 @@ private:
     float GetHierarchyStartY() const { return TopBarHeight + 32.0f + 8.0f; }
 
     Core::ShapeType m_currentShapeType = Core::ShapeType::Rectangle;
+
+    Core::Scene& GetActiveScene()
+    {
+        return m_isPlaying ? m_runtimeScene : m_scene;
+    }
+
+    const Core::Scene& GetActiveScene() const
+    {
+        return m_isPlaying ? m_runtimeScene : m_scene;
+    }
 
     std::size_t GetVisibleHierarchyCount() const
     {
@@ -418,6 +445,51 @@ private:
         Core::Input::GetMousePosition(mx, my);
         const float width = (float)GetRenderer().GetWidth();
 
+        // Обработка чекбокса Is Static в Inspector.
+        if (!m_isPlaying && !m_selectedEntityIds.empty())
+        {
+            const float rightPanelWidth = std::min(280.0f, width * 0.30f);
+            const float rightPanelX = std::max(
+                GetLeftPanelWidth(),
+                width - rightPanelWidth
+            );
+
+            const float inspectorX = rightPanelX + 12.0f;
+
+            const float cbY = 200.0f;
+            const float cbX = inspectorX + 120.0f;
+            const float cbSize = 14.0f;
+
+            if (mx >= cbX && mx <= cbX + cbSize &&
+                my >= cbY && my <= cbY + cbSize)
+            {
+                bool allStatic = true;
+
+                for (auto id : m_selectedEntityIds)
+                {
+                    const auto* entity = m_scene.FindEntity(id);
+
+                    if (entity && !entity->isStatic)
+                    {
+                        allStatic = false;
+                        break;
+                    }
+                }
+
+                const bool newState = !allStatic;
+
+                for (auto id : m_selectedEntityIds)
+                {
+                    auto* entity = m_scene.FindEntity(id);
+
+                    if (entity)
+                        entity->isStatic = newState;
+                }
+
+                return;
+            }
+        }
+
         // Если клик был в верхней панели (высота 36), обрабатываем только кнопки UI
         if (my >= 0.0f && my <= TopBarHeight)
         {
@@ -478,65 +550,36 @@ private:
             // Кнопка Play/Stop
             if (mx >= 700.0f && mx <= 780.0f && my >= 6.0f && my <= 30.0f)
             {
-                if (!m_isPlaying)
-                {
-                    SaveScene("temp_play.kjarn");
-                    m_isPlaying = true;
-                    m_selectedEntityIds.clear();
-
-                    for (auto& entity : m_scene.GetEntities())
-                    {
-                        // Включаем гравитацию для всех, КРОМЕ статичных объектов
-                        if (!entity.isStatic) {
-                            entity.useGravity = true;
-                        }
-                    }
-                }
-                else
-                {
-                    LoadScene("temp_play.kjarn");
-                    m_isPlaying = false;
-                }
+                StartPlayMode();
+                return;
             }
 
-            // Обработка клика по чекбоксу в Инспекторе
-            if (!m_selectedEntityIds.empty() && !m_isPlaying)
-            {
-                const float rightPanelWidth = std::min(280.0f, width * 0.30f);
-                const float rightPanelX = std::max(GetLeftPanelWidth(), width - rightPanelWidth);
-                const float inspectorX = rightPanelX + 12.0f;
-
-                // Координаты, которые мы использовали при отрисовке
-                float cbY = 200.0f;
-                float cbX = inspectorX + 120.0f;
-                float cbSize = 14.0f;
-
-                // Если кликнули точно по чекбоксу
-                if (mx >= cbX && mx <= cbX + cbSize && my >= cbY && my <= cbY + cbSize)
-                {
-                    // Проверяем, все ли уже статичны
-                    bool allStatic = true;
-                    for (auto id : m_selectedEntityIds) {
-                        auto* e = m_scene.FindEntity(id);
-                        if (e && !e->isStatic) { allStatic = false; break; }
-                    }
-
-                    // Если все были статичны -> делаем их динамичными. Иначе -> делаем всех статичными.
-                    bool newState = !allStatic;
-
-                    for (auto id : m_selectedEntityIds) {
-                        auto* e = m_scene.FindEntity(id);
-                        if (e) e->isStatic = newState;
-                    }
-                    return; // Обязательно выходим, чтобы клик не провалился в сцену!
-                }
-            }
-
+            
             return; // Выходим, чтобы клик по верхней панели не сработал во вьюпорте
         }
 
         // Если клик был НЕ в верхней панели, проверяем клики по иерархии
         HandleHierarchyClick();
+    }
+
+    void HandlePlayModeInput()
+    {
+        if (!Core::Input::IsLeftMouseButtonPressed())
+            return;
+
+        float mouseX = 0.0f;
+        float mouseY = 0.0f;
+
+        Core::Input::GetMousePosition(mouseX, mouseY);
+
+        // Обрабатываем только кнопку STOP.
+        if (mouseX >= 700.0f &&
+            mouseX <= 780.0f &&
+            mouseY >= 6.0f &&
+            mouseY <= 30.0f)
+        {
+            StopPlayMode();
+        }
     }
 
     void BuildHierarchy()
@@ -554,6 +597,90 @@ private:
                 }
             }
         }
+    }
+
+
+    void UpdateRuntime(float deltaTime)
+    {
+        Core::Entity* player = nullptr;
+
+        for (auto& entity : m_runtimeScene.GetEntities())
+        {
+            if (entity.isPlayer)
+            {
+                player = &entity;
+                break;
+            }
+        }
+
+        // Управление игроком.
+        if (player != nullptr)
+        {
+            constexpr float moveSpeed = 500.0f;
+            constexpr float jumpForce = -800.0f;
+
+            if (Core::Input::IsKeyDown('A'))
+                player->velocityX = -moveSpeed;
+            else if (Core::Input::IsKeyDown('D'))
+                player->velocityX = moveSpeed;
+            else
+                player->velocityX = 0.0f;
+
+            if (Core::Input::IsKeyDown(VK_SPACE) && player->isGrounded)
+            {
+                player->velocityY = jumpForce;
+                player->isGrounded = false;
+            }
+        }
+
+        // Физика работает только с Runtime Scene.
+        Core::Physics::UpdateScene(
+            m_runtimeScene.GetEntities(),
+            deltaTime,
+            m_gravity
+        );
+    }
+
+    void StartPlayMode()
+    {
+        if (m_isPlaying)
+            return;
+
+        // Создаём копию редакторской сцены.
+        m_runtimeScene = m_scene;
+
+        // Включаем гравитацию для динамических объектов.
+        for (auto& entity : m_runtimeScene.GetEntities())
+        {
+            if (!entity.isStatic)
+            {
+                entity.useGravity = true;
+            }
+        }
+
+        // Сбрасываем состояние редактора.
+        m_selectedEntityIds.clear();
+        m_isDragging = false;
+        m_isMarqueeSelecting = false;
+        m_dragStartPositions.clear();
+
+        m_isPlaying = true;
+    }
+
+    void StopPlayMode()
+    {
+        if (!m_isPlaying)
+            return;
+
+        m_isPlaying = false;
+
+        // Уничтожаем игровую копию.
+        m_runtimeScene.Clear();
+
+        m_selectedEntityIds.clear();
+        m_isDragging = false;
+        m_isMarqueeSelecting = false;
+        m_dragStartPositions.clear();
     }
 
     void RegenerateScene()
@@ -592,8 +719,9 @@ private:
         if (!file.is_open()) return;
 
         file << "KJARN_SCENE_V1\n";
+        const Core::Scene& activeScene = GetActiveScene();
 
-        for (const auto& entity : m_scene.GetEntities())
+        for (const auto& entity : activeScene.GetEntities())
         {
             std::string typeStr = "RECT";
             if (entity.shape == Core::ShapeType::Circle) typeStr = "CIRCLE";
@@ -820,7 +948,12 @@ private:
     }
 
     Core::Camera m_camera;
+    // Сцена, которую редактирует пользователь.
     Core::Scene m_scene;
+
+    // Копия сцены для игрового режима.
+    Core::Scene m_runtimeScene;
+
     std::vector<Core::EntityId> m_hierarchyEntityIds;
     std::vector<Core::EntityId> m_selectedEntityIds;
     Kjarn::UI::UIDrawList m_uiDrawList;
