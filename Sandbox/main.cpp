@@ -62,6 +62,51 @@ protected:
             return;
         }
 
+        // Обрабатываем скролл колесиком ДО обработки кликов
+        float mx, my;
+        Core::Input::GetMousePosition(mx, my);
+        const float height = (float)GetRenderer().GetHeight();
+
+        if (mx >= 0.0f && mx <= GetLeftPanelWidth() && my > TopBarHeight && my < height - BottomBarHeight)
+        {
+            int wheel = Core::Input::GetMouseWheelDelta();
+            if (wheel != 0) {
+                m_hierarchyScroll -= wheel * 30.0f;
+                float maxScroll = std::max(0.0f, (float)m_hierarchyEntityIds.size() * HierarchyRowHeight - (height - TopBarHeight - BottomBarHeight - 40.0f));
+                m_hierarchyScroll = std::clamp(m_hierarchyScroll, 0.0f, maxScroll);
+            }
+        }
+
+        // Обработка перетаскивания скроллбара
+        if (m_isDraggingScrollbar)
+        {
+            if (Core::Input::IsKeyDown(VK_LBUTTON))
+            {
+                float mx, my;
+                Core::Input::GetMousePosition(mx, my);
+                float height = (float)GetRenderer().GetHeight();
+
+                float totalHeight = m_hierarchyEntityIds.size() * HierarchyRowHeight;
+                float viewHeight = height - BottomBarHeight - GetHierarchyStartY();
+
+                if (totalHeight > viewHeight) {
+                    float thumbHeight = std::max(20.0f, (viewHeight / totalHeight) * viewHeight);
+                    float maxScroll = totalHeight - viewHeight;
+
+                    // Считаем новую позицию скролла
+                    float newThumbY = my - m_scrollbarDragOffsetY - GetHierarchyStartY();
+                    float scrollRatio = std::clamp(newThumbY / (viewHeight - thumbHeight), 0.0f, 1.0f);
+
+                    m_hierarchyScroll = scrollRatio * maxScroll;
+                }
+            }
+            else
+            {
+                m_isDraggingScrollbar = false; // Отпустили кнопку
+            }
+            return; // Не даем работать остальному редактору, пока тащим
+        }
+
         // Обрабатываем редакторский интерфейс.
         HandleUIClicks();
 
@@ -82,6 +127,7 @@ protected:
                 m_scene.DestroyEntity(id);
 
             m_selectedEntityIds.clear();
+            BuildHierarchy();
         }
 
         constexpr float cameraSpeed = 500.0f;
@@ -220,6 +266,10 @@ private:
 
     float GetLeftPanelWidth() const { return std::min(220.0f, GetRenderer().GetWidth() * 0.25f); }
     float GetHierarchyStartY() const { return TopBarHeight + 32.0f + 8.0f; }
+
+    float m_hierarchyScroll = 0.0f;
+    bool m_isDraggingScrollbar = false;
+    float m_scrollbarDragOffsetY = 0.0f;
 
     Core::ShapeType m_currentShapeType = Core::ShapeType::Rectangle;
 
@@ -431,8 +481,13 @@ private:
         float mouseX, mouseY;
         Core::Input::GetMousePosition(mouseX, mouseY);
         if (mouseX < 0.0f || mouseX >= GetLeftPanelWidth() || mouseY < GetHierarchyStartY()) return;
-        std::size_t rowIndex = (std::size_t)((mouseY - GetHierarchyStartY()) / HierarchyRowHeight);
-        if (rowIndex >= GetVisibleHierarchyCount()) return;
+
+        // Учитываем скролл при вычислении строки!
+        float localY = mouseY - GetHierarchyStartY() + m_hierarchyScroll;
+        if (localY < 0.0f) return;
+
+        std::size_t rowIndex = (std::size_t)(localY / HierarchyRowHeight);
+        if (rowIndex >= m_hierarchyEntityIds.size()) return;
 
         bool isAdditive = Core::Input::IsKeyDown(VK_CONTROL) || Core::Input::IsKeyDown(VK_SHIFT);
         SelectEntity(m_hierarchyEntityIds[rowIndex], isAdditive);
@@ -440,11 +495,34 @@ private:
 
     void HandleUIClicks()
     {
-        if (!Core::Input::IsLeftMouseButtonPressed()) return;
-
         float mx, my;
         Core::Input::GetMousePosition(mx, my);
         const float width = (float)GetRenderer().GetWidth();
+        const float height = (float)GetRenderer().GetHeight();
+
+        // Проверяем, не схватили ли мы ползунок скроллбара
+        if (Core::Input::IsLeftMouseButtonPressed() && !m_isDraggingScrollbar)
+        {
+            float totalHeight = m_hierarchyEntityIds.size() * HierarchyRowHeight;
+            float viewHeight = height - BottomBarHeight - GetHierarchyStartY();
+
+            if (totalHeight > viewHeight) {
+                float scrollbarX = GetLeftPanelWidth() - 8.0f;
+                float scrollbarWidth = 6.0f;
+                float thumbHeight = std::max(20.0f, (viewHeight / totalHeight) * viewHeight);
+                float thumbY = GetHierarchyStartY() + (m_hierarchyScroll / totalHeight) * viewHeight;
+
+                // Если кликнули по ползунку
+                if (mx >= scrollbarX && mx <= scrollbarX + scrollbarWidth && my >= thumbY && my <= thumbY + thumbHeight)
+                {
+                    m_isDraggingScrollbar = true;
+                    m_scrollbarDragOffsetY = my - thumbY; // Запоминаем, где именно схватили
+                    return;
+                }
+            }
+        }
+
+        if (!Core::Input::IsLeftMouseButtonPressed()) return;
 
         // Обработка чекбокса Is Static в Inspector.
         if (!m_isPlaying && !m_selectedEntityIds.empty())
@@ -490,7 +568,7 @@ private:
                 return;
             }
         }
-
+        
         // Если клик был в верхней панели (высота 36), обрабатываем только кнопки UI
         if (my >= 0.0f && my <= TopBarHeight)
         {
@@ -520,6 +598,7 @@ private:
                     newEntity->isStatic = false;
                     m_selectedEntityIds = { newId };
                 }
+                BuildHierarchy();
             }
 
             // Кнопка + Add Block
@@ -546,6 +625,7 @@ private:
 
                     m_selectedEntityIds = { newId };
                 }
+                BuildHierarchy();
             }
 
             // Кнопка Play/Stop
@@ -586,17 +666,10 @@ private:
     void BuildHierarchy()
     {
         m_hierarchyEntityIds.clear();
-        int gridWidth = m_gridRadius * 2 + 1;
-
-        // Берем только центральные 25 объектов для списка
-        for (int i = -2; i <= 2; ++i) {
-            for (int j = -2; j <= 2; ++j) {
-                std::size_t index = (std::size_t)((i + m_gridRadius) * gridWidth + (j + m_gridRadius));
-                const auto& entities = m_scene.GetEntities();
-                if (index < entities.size()) {
-                    m_hierarchyEntityIds.push_back(entities[index].id);
-                }
-            }
+        // Проходим по ВСЕМ объектам сцены и добавляем их в список
+        for (const auto& entity : m_scene.GetEntities())
+        {
+            m_hierarchyEntityIds.push_back(entity.id);
         }
     }
 
@@ -844,19 +917,47 @@ private:
             }
 
             const std::size_t visibleCount = GetVisibleHierarchyCount();
-            for (std::size_t i = 0; i < visibleCount; ++i) {
+            // Отрисовка списка с учетом скролла
+            float clipTop = GetHierarchyStartY();
+            float clipBottom = height - BottomBarHeight;
+
+            for (std::size_t i = 0; i < m_hierarchyEntityIds.size(); ++i) {
                 const Core::EntityId entityId = m_hierarchyEntityIds[i];
                 const Core::Entity* entity = m_scene.FindEntity(entityId);
                 if (entity == nullptr) continue;
 
-                float rowY = GetHierarchyStartY() + (float)i * HierarchyRowHeight;
+                // Сдвигаем Y с учетом скролла
+                float rowY = GetHierarchyStartY() + (float)i * HierarchyRowHeight - m_hierarchyScroll;
+
+                // Отсечение (Clipping): рисуем только то, что внутри панели
+                if (rowY + HierarchyRowHeight < clipTop || rowY > clipBottom) continue;
+
                 bool isSelected = std::find(m_selectedEntityIds.begin(), m_selectedEntityIds.end(), entityId) != m_selectedEntityIds.end();
                 if (isSelected) m_uiDrawList.AddFillRect({ 0.0f, rowY, leftPanelWidth, HierarchyRowHeight }, selectedRow);
 
                 int gridX = (int)(entity->transform.position.x / CellSize);
                 int gridY = (int)(entity->transform.position.y / CellSize);
                 std::string label = "Cell (" + std::to_string(gridX) + ", " + std::to_string(gridY) + ")";
+                if (entity->isPlayer) label = "Player Unit";
+
                 m_uiDrawList.AddText({ 28.0f, rowY + 4.0f }, label, isSelected ? text : secondaryText, 12.0f);
+            }
+            // Рисуем визуальный скроллбар
+            float totalHeight = m_hierarchyEntityIds.size() * HierarchyRowHeight;
+            float viewHeight = height - BottomBarHeight - GetHierarchyStartY();
+
+            if (totalHeight > viewHeight) {
+                float scrollbarX = leftPanelWidth - 8.0f;
+                float scrollbarWidth = 6.0f;
+
+                // Фон скроллбара
+                m_uiDrawList.AddFillRect({ scrollbarX, GetHierarchyStartY(), scrollbarWidth, viewHeight }, panelHeader);
+
+                // Ползунок
+                float thumbHeight = std::max(20.0f, (viewHeight / totalHeight) * viewHeight);
+                float thumbY = GetHierarchyStartY() + (m_hierarchyScroll / totalHeight) * viewHeight;
+
+                m_uiDrawList.AddFillRect({ scrollbarX, thumbY, scrollbarWidth, thumbHeight }, border);
             }
 
             m_uiDrawList.AddFillRect({ rightPanelX, TopBarHeight, width - rightPanelX, height - TopBarHeight - BottomBarHeight }, panel);
