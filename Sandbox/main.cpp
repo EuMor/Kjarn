@@ -146,17 +146,13 @@ protected:
 
         const int wheel = Core::Input::GetMouseWheelDelta();
 
-        if (wheel > 0)
-            m_camera.zoom *= 1.1f;
-
-        if (wheel < 0)
-            m_camera.zoom /= 1.1f;
-
-        m_camera.zoom = std::clamp(
-            m_camera.zoom,
-            0.1f,
-            10.0f
-        );
+        if (IsMouseOverViewport(mx, my))
+        {
+            const int wheel = Core::Input::GetMouseWheelDelta();
+            if (wheel > 0) m_camera.zoom *= 1.1f;
+            if (wheel < 0) m_camera.zoom /= 1.1f;
+            m_camera.zoom = std::clamp(m_camera.zoom, 0.1f, 10.0f);
+        }
     }
 
     void OnRender() override
@@ -271,6 +267,9 @@ private:
     bool m_isDraggingScrollbar = false;
     float m_scrollbarDragOffsetY = 0.0f;
 
+    enum class EditorTool { Select, Brush, Eraser };
+    EditorTool m_currentTool = EditorTool::Select;
+
     Core::ShapeType m_currentShapeType = Core::ShapeType::Rectangle;
 
     Core::Scene& GetActiveScene()
@@ -350,6 +349,67 @@ private:
         const float w = (float)GetRenderer().GetWidth();
         const float h = (float)GetRenderer().GetHeight();
 
+        // --- РЕЖИМ КИСТИ / ЛАСТИКА ---
+        if (m_currentTool == EditorTool::Brush || m_currentTool == EditorTool::Eraser)
+        {
+            // Если зажата левая кнопка мыши и мы в зоне видимости
+            if (Core::Input::IsKeyDown(VK_LBUTTON) && IsMouseOverViewport(mouseX, mouseY))
+            {
+                float worldX, worldY;
+                m_camera.ScreenToWorld(mouseX, mouseY, w, h, worldX, worldY);
+
+                // Привязка к сетке
+                float gridX = round(worldX / CellSize) * CellSize;
+                float gridY = round(worldY / CellSize) * CellSize;
+
+                if (m_currentTool == EditorTool::Brush)
+                {
+                    // Проверяем, есть ли уже объект в этой клетке
+                    bool cellOccupied = false;
+                    for (const auto& e : m_scene.GetEntities()) {
+                        if (abs(e.transform.position.x - (gridX + 5.0f)) < 1.0f &&
+                            abs(e.transform.position.y - (gridY + 5.0f)) < 1.0f) {
+                            cellOccupied = true;
+                            break;
+                        }
+                    }
+
+                    if (!cellOccupied)
+                    {
+                        Core::EntityId newId = m_scene.CreateEntity();
+                        Core::Entity* newEntity = m_scene.FindEntity(newId);
+                        if (newEntity)
+                        {
+                            newEntity->width = CellSize - 10.0f;
+                            newEntity->height = CellSize - 10.0f;
+                            newEntity->transform.position.x = gridX + 5.0f;
+                            newEntity->transform.position.y = gridY + 5.0f;
+                            newEntity->shape = m_currentShapeType;
+                            newEntity->color = Core::Color(200, 100, 50); // Оранжевый
+                            newEntity->isStatic = true; // Блоки кисти по умолчанию статичны (земля)
+                            BuildHierarchy(); // Обновляем список
+                        }
+                    }
+                }
+                else if (m_currentTool == EditorTool::Eraser)
+                {
+                    // Удаляем объект, если он есть в этой клетке
+                    Core::EntityId idToRemove = {};
+                    for (const auto& e : m_scene.GetEntities()) {
+                        if (abs(e.transform.position.x - (gridX + 5.0f)) < 1.0f &&
+                            abs(e.transform.position.y - (gridY + 5.0f)) < 1.0f) {
+                            idToRemove = e.id;
+                            break;
+                        }
+                    }
+                    if (idToRemove.IsValid()) {
+                        m_scene.DestroyEntity(idToRemove);
+                        BuildHierarchy();
+                    }
+                }
+            }
+            return; // Выходим, чтобы дальше не работало выделение
+        }
         if (Core::Input::IsLeftMouseButtonPressed())
         {
             // Если клик был по UI (левая панель, правая панель, верх, низ) — ничего не делаем
@@ -572,28 +632,33 @@ private:
         // Если клик был в верхней панели (высота 36), обрабатываем только кнопки UI
         if (my >= 0.0f && my <= TopBarHeight)
         {
-            // Кнопки выбора фигуры
-            if (mx >= 300.0f && mx <= 360.0f) m_currentShapeType = Core::ShapeType::Rectangle;
-            if (mx >= 365.0f && mx <= 425.0f) m_currentShapeType = Core::ShapeType::Circle;
-            if (mx >= 430.0f && mx <= 490.0f) m_currentShapeType = Core::ShapeType::Triangle;
+            // Кнопки инструментов (200 - 345)
+            if (mx >= 200.0f && mx <= 245.0f) m_currentTool = EditorTool::Select;
+            if (mx >= 250.0f && mx <= 295.0f) m_currentTool = EditorTool::Brush;
+            if (mx >= 300.0f && mx <= 345.0f) m_currentTool = EditorTool::Eraser;
 
-            // Кнопки Save и Load
+            // Кнопки выбора фигуры (360 - 520)
+            if (mx >= 360.0f && mx <= 410.0f) m_currentShapeType = Core::ShapeType::Rectangle;
+            if (mx >= 415.0f && mx <= 465.0f) m_currentShapeType = Core::ShapeType::Circle;
+            if (mx >= 470.0f && mx <= 520.0f) m_currentShapeType = Core::ShapeType::Triangle;
+
+            // Кнопки Save и Load справа
             if (mx >= width - 200.0f && mx <= width - 110.0f) SaveScene("level.kjarn");
             if (mx >= width - 100.0f && mx <= width - 10.0f) LoadScene("level.kjarn");
 
-            // Кнопка Spawn Player
-            if (mx >= 610.0f && mx <= 690.0f)
+            // Кнопка Spawn Player (630 - 710)
+            if (mx >= 630.0f && mx <= 710.0f)
             {
                 Core::EntityId newId = m_scene.CreateEntity();
                 Core::Entity* newEntity = m_scene.FindEntity(newId);
                 if (newEntity)
                 {
-                    newEntity->width = 40.0f; // Игрок чуть меньше кубика
+                    newEntity->width = 40.0f;
                     newEntity->height = 60.0f;
                     newEntity->transform.position.x = m_camera.x;
-                    newEntity->transform.position.y = m_camera.y - 200.0f; // Чуть выше камеры
-                    newEntity->color = Core::Color(50, 150, 255); // Синий
-                    newEntity->shape = Core::ShapeType::Rectangle; // Или сделай ему отдельную форму
+                    newEntity->transform.position.y = m_camera.y - 200.0f;
+                    newEntity->color = Core::Color(50, 150, 255);
+                    newEntity->shape = Core::ShapeType::Rectangle;
                     newEntity->isPlayer = true;
                     newEntity->isStatic = false;
                     m_selectedEntityIds = { newId };
@@ -601,8 +666,8 @@ private:
                 BuildHierarchy();
             }
 
-            // Кнопка + Add Block
-            if (mx >= 500.0f && mx <= 600.0f)
+            // Кнопка + Add Block (530 - 620)
+            if (mx >= 530.0f && mx <= 620.0f)
             {
                 Core::EntityId newId = m_scene.CreateEntity();
                 Core::Entity* newEntity = m_scene.FindEntity(newId);
@@ -628,15 +693,14 @@ private:
                 BuildHierarchy();
             }
 
-            // Кнопка Play/Stop
-            if (mx >= 700.0f && mx <= 780.0f && my >= 6.0f && my <= 30.0f)
+            // Кнопка Play/Stop (720 - 800)
+            if (mx >= 720.0f && mx <= 800.0f && my >= 6.0f && my <= 30.0f)
             {
                 StartPlayMode();
                 return;
             }
 
-            
-            return; // Выходим, чтобы клик по верхней панели не сработал во вьюпорте
+            return;
         }
 
         // Если клик был НЕ в верхней панели, проверяем клики по иерархии
@@ -654,13 +718,14 @@ private:
         Core::Input::GetMousePosition(mouseX, mouseY);
 
         // Обрабатываем только кнопку STOP.
-        if (mouseX >= 700.0f &&
-            mouseX <= 780.0f &&
+        if (mouseX >= 720.0f &&
+            mouseX <= 800.0f &&
             mouseY >= 6.0f &&
             mouseY <= 30.0f)
         {
             StopPlayMode();
         }
+
     }
 
     void BuildHierarchy()
@@ -884,17 +949,31 @@ private:
             Kjarn::UI::UIColor activeColor = accent;
             Kjarn::UI::UIColor inactiveColor = border;
 
-            m_uiDrawList.AddFillRect({ 300.0f, 6.0f, 60.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Rectangle ? activeColor : inactiveColor);
-            m_uiDrawList.AddText({ 315.0f, 10.0f }, "Rect", text, 12.0f);
+            // Tool: Select
+            m_uiDrawList.AddFillRect({ 200.0f, 6.0f, 45.0f, 24.0f }, m_currentTool == EditorTool::Select ? accent : border);
+            m_uiDrawList.AddText({ 210.0f, 10.0f }, "Sel", text, 12.0f);
 
-            m_uiDrawList.AddFillRect({ 365.0f, 6.0f, 60.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Circle ? activeColor : inactiveColor);
-            m_uiDrawList.AddText({ 376.0f, 10.0f }, "Circle", text, 12.0f);
+            // Tool: Brush
+            m_uiDrawList.AddFillRect({ 250.0f, 6.0f, 45.0f, 24.0f }, m_currentTool == EditorTool::Brush ? accent : border);
+            m_uiDrawList.AddText({ 260.0f, 10.0f }, "Brush", text, 12.0f);
 
-            m_uiDrawList.AddFillRect({ 430.0f, 6.0f, 60.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Triangle ? activeColor : inactiveColor);
-            m_uiDrawList.AddText({ 445.0f, 10.0f }, "Tri", text, 12.0f);
+            // Tool: Eraser
+            m_uiDrawList.AddFillRect({ 300.0f, 6.0f, 45.0f, 24.0f }, m_currentTool == EditorTool::Eraser ? accent : border);
+            m_uiDrawList.AddText({ 310.0f, 10.0f }, "Eraser", text, 12.0f);
 
-            m_uiDrawList.AddText({ 515.0f, 10.0f }, "+ Add Block", text, 12.0f);
-            m_uiDrawList.AddLine({ 0.0f, TopBarHeight }, { width, TopBarHeight }, border);
+            // Кнопки фигур
+            m_uiDrawList.AddFillRect({ 360.0f, 6.0f, 50.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Rectangle ? accent : border);
+            m_uiDrawList.AddText({ 375.0f, 10.0f }, "Rect", text, 12.0f);
+
+            m_uiDrawList.AddFillRect({ 415.0f, 6.0f, 50.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Circle ? accent : border);
+            m_uiDrawList.AddText({ 430.0f, 10.0f }, "Circle", text, 12.0f);
+
+            m_uiDrawList.AddFillRect({ 470.0f, 6.0f, 50.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Triangle ? accent : border);
+            m_uiDrawList.AddText({ 480.0f, 10.0f }, "Tri", text, 12.0f);
+
+            // Кнопка Add Block
+            m_uiDrawList.AddFillRect({ 530.0f, 6.0f, 90.0f, 24.0f }, border);
+            m_uiDrawList.AddText({ 540.0f, 10.0f }, "+ Add Block", text, 12.0f);
 
             m_uiDrawList.AddFillRect({ 0.0f, TopBarHeight, leftPanelWidth, height - TopBarHeight - BottomBarHeight }, panel);
             m_uiDrawList.AddFillRect({ 0.0f, TopBarHeight, leftPanelWidth, 32.0f }, panelHeader);
@@ -903,17 +982,18 @@ private:
             m_uiDrawList.AddText({ 14.0f, TopBarHeight + 40.0f }, "Scene", text, 13.0f);
 
 
-            m_uiDrawList.AddFillRect({ 610.0f, 6.0f, 80.0f, 24.0f }, { 50, 150, 255, 255 }); // Синяя
-            m_uiDrawList.AddText({ 618.0f, 10.0f }, "+ Player", text, 12.0f);
+            // Кнопка Player
+            m_uiDrawList.AddFillRect({ 630.0f, 6.0f, 80.0f, 24.0f }, { 50, 150, 255, 255 });
+            m_uiDrawList.AddText({ 640.0f, 10.0f }, "+ Player", text, 12.0f);
 
             // Кнопка PLAY / STOP
             if (!m_isPlaying) {
-                m_uiDrawList.AddFillRect({ 700.0f, 6.0f, 80.0f, 24.0f }, { 80, 180, 80, 255 }); // Зеленая
-                m_uiDrawList.AddText({ 720.0f, 10.0f }, "▶ PLAY", text, 12.0f);
+                m_uiDrawList.AddFillRect({ 720.0f, 6.0f, 80.0f, 24.0f }, { 80, 180, 80, 255 }); // Зеленая
+                m_uiDrawList.AddText({ 740.0f, 10.0f }, "▶ PLAY", text, 12.0f);
             }
             else {
-                m_uiDrawList.AddFillRect({ 700.0f, 6.0f, 80.0f, 24.0f }, { 200, 60, 60, 255 }); // Красная
-                m_uiDrawList.AddText({ 720.0f, 10.0f }, "■ STOP", text, 12.0f);
+                m_uiDrawList.AddFillRect({ 720.0f, 6.0f, 80.0f, 24.0f }, { 200, 60, 60, 255 }); // Красная
+                m_uiDrawList.AddText({ 740.0f, 10.0f }, "■ STOP", text, 12.0f);
             }
 
             const std::size_t visibleCount = GetVisibleHierarchyCount();
