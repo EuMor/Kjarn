@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Entity.h"
+#include "Core/Tilemap.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -29,10 +30,16 @@ namespace Core
 
         void Clear() {
             m_entities.clear(); 
+            m_tilemap.Clear();
         }
+
+        Tilemap& GetTilemap() { return m_tilemap; }
+        const Tilemap& GetTilemap() const { return m_tilemap; }
+
     private:
         std::vector<Entity> m_entities;
 
         std::uint64_t m_nextEntityId = 1;
+        Tilemap m_tilemap;
     };
 }

@@ -7,6 +7,7 @@
 #include "Core/Color.h"
 #include "Core/Scene/Scene.h"
 #include "Core/Scene/SceneSerializer.h"
+#include "Editor/Tools/BrushTool.h"
 
 #include "Platform/Win32/Window.h"
 #include "Platform/Win32/Input.h"
@@ -130,6 +131,20 @@ protected:
             BuildHierarchy();
         }
 
+        // --- ГОРЯЧИЕ КЛАВИШИ ИНСТРУМЕНТОВ ---
+        if (Core::Input::IsKeyPressed('B')) m_currentTool = EditorTool::Brush;
+        if (Core::Input::IsKeyPressed('E')) m_currentTool = EditorTool::Eraser;
+        if (Core::Input::IsKeyPressed('V')) m_currentTool = EditorTool::Select;
+
+        if (!m_selectedEntityIds.empty() && Core::Input::IsKeyPressed(VK_DELETE))
+        {
+            for (auto id : m_selectedEntityIds)
+                m_scene.DestroyEntity(id);
+
+            m_selectedEntityIds.clear();
+            BuildHierarchy(); // Обновляем список при удалении
+        }
+
         constexpr float cameraSpeed = 500.0f;
 
         if (Core::Input::IsKeyDown('W'))
@@ -178,9 +193,26 @@ protected:
             for (int x = startX; x <= endX; x += (int)CellSize) renderer.DrawLine(m_camera, (float)x, top, (float)x, bottom, gridColor);
             for (int y = startY; y <= endY; y += (int)CellSize) renderer.DrawLine(m_camera, left, (float)y, right, (float)y, gridColor);
 
+
+
             // 2. Объекты
             const Core::Scene& activeScene = GetActiveScene();
 
+            // 2. Отрисовка Тайлмапа (земля, стены)
+            const Core::Tilemap& tilemap = activeScene.GetTilemap();
+            for (const auto& [key, tile] : tilemap.GetTiles())
+            {
+                int cx, cy;
+                Core::Tilemap::UnpackKey(key, cx, cy);
+
+                float worldX = cx * CellSize + 5.0f; // +5 для центрирования в клетке
+                float worldY = cy * CellSize + 5.0f;
+                float size = CellSize - 10.0f;
+
+                renderer.DrawRect(m_camera, worldX, worldY, size, size, tile.color);
+            }
+
+            // 3. Отрисовка Сущностей (игрок, враги)
             for (const auto& entity : activeScene.GetEntities())
             {
                 if (entity.shape == Core::ShapeType::Circle) {
@@ -193,8 +225,7 @@ protected:
                     renderer.DrawRect(m_camera, entity.transform.position.x, entity.transform.position.y, entity.width, entity.height, entity.color);
                 }
             }
-            // 3. Подсветка
-                        // 3. Подсветка
+            // 4. Подсветка
             for (Core::EntityId id : m_selectedEntityIds)
             {
                 const Core::Entity* selected = m_scene.FindEntity(id);
@@ -269,6 +300,11 @@ private:
 
     enum class EditorTool { Select, Brush, Eraser };
     EditorTool m_currentTool = EditorTool::Select;
+
+    Kjarn::Editor::BrushTool m_brushTool;
+    int m_lastPaintCellX = 0;
+    int m_lastPaintCellY = 0;
+    bool m_isPainting = false;
 
     Core::ShapeType m_currentShapeType = Core::ShapeType::Rectangle;
 
@@ -352,64 +388,39 @@ private:
         // --- РЕЖИМ КИСТИ / ЛАСТИКА ---
         if (m_currentTool == EditorTool::Brush || m_currentTool == EditorTool::Eraser)
         {
-            // Если зажата левая кнопка мыши и мы в зоне видимости
             if (Core::Input::IsKeyDown(VK_LBUTTON) && IsMouseOverViewport(mouseX, mouseY))
             {
                 float worldX, worldY;
                 m_camera.ScreenToWorld(mouseX, mouseY, w, h, worldX, worldY);
 
-                // Привязка к сетке
-                float gridX = round(worldX / CellSize) * CellSize;
-                float gridY = round(worldY / CellSize) * CellSize;
+                // Используем floor для точного попадания в клетку
+                int cellX = (int)std::floor(worldX / CellSize);
+                int cellY = (int)std::floor(worldY / CellSize);
 
-                if (m_currentTool == EditorTool::Brush)
-                {
-                    // Проверяем, есть ли уже объект в этой клетке
-                    bool cellOccupied = false;
-                    for (const auto& e : m_scene.GetEntities()) {
-                        if (abs(e.transform.position.x - (gridX + 5.0f)) < 1.0f &&
-                            abs(e.transform.position.y - (gridY + 5.0f)) < 1.0f) {
-                            cellOccupied = true;
-                            break;
-                        }
-                    }
+                bool isErasing = (m_currentTool == EditorTool::Eraser);
+                Core::Color paintColor(200, 100, 50); // Оранжевый цвет по умолчанию
 
-                    if (!cellOccupied)
-                    {
-                        Core::EntityId newId = m_scene.CreateEntity();
-                        Core::Entity* newEntity = m_scene.FindEntity(newId);
-                        if (newEntity)
-                        {
-                            newEntity->width = CellSize - 10.0f;
-                            newEntity->height = CellSize - 10.0f;
-                            newEntity->transform.position.x = gridX + 5.0f;
-                            newEntity->transform.position.y = gridY + 5.0f;
-                            newEntity->shape = m_currentShapeType;
-                            newEntity->color = Core::Color(200, 100, 50); // Оранжевый
-                            newEntity->isStatic = true; // Блоки кисти по умолчанию статичны (земля)
-                            BuildHierarchy(); // Обновляем список
-                        }
-                    }
+                if (!m_isPainting) {
+                    // Первое нажатие (рисуем одну точку)
+                    m_isPainting = true;
+                    m_brushTool.PaintLine(m_scene.GetTilemap(), cellX, cellY, cellX, cellY, paintColor, isErasing);
                 }
-                else if (m_currentTool == EditorTool::Eraser)
-                {
-                    // Удаляем объект, если он есть в этой клетке
-                    Core::EntityId idToRemove = {};
-                    for (const auto& e : m_scene.GetEntities()) {
-                        if (abs(e.transform.position.x - (gridX + 5.0f)) < 1.0f &&
-                            abs(e.transform.position.y - (gridY + 5.0f)) < 1.0f) {
-                            idToRemove = e.id;
-                            break;
-                        }
-                    }
-                    if (idToRemove.IsValid()) {
-                        m_scene.DestroyEntity(idToRemove);
-                        BuildHierarchy();
-                    }
+                else {
+                    // Протяжка мыши (рисуем линию от прошлой клетки к текущей)
+                    m_brushTool.PaintLine(m_scene.GetTilemap(), m_lastPaintCellX, m_lastPaintCellY, cellX, cellY, paintColor, isErasing);
                 }
+
+                m_lastPaintCellX = cellX;
+                m_lastPaintCellY = cellY;
             }
-            return; // Выходим, чтобы дальше не работало выделение
+            else
+            {
+                m_isPainting = false;
+            }
+            return;
         }
+
+        // --- РЕЖИМ ВЫДЕЛЕНИЯ ---
         if (Core::Input::IsLeftMouseButtonPressed())
         {
             // Если клик был по UI (левая панель, правая панель, верх, низ) — ничего не делаем
@@ -824,27 +835,19 @@ private:
 
     void RegenerateScene()
     {
+        m_scene.Clear();
         m_hierarchyEntityIds.clear();
         m_selectedEntityIds.clear();
 
-        float squareSize = CellSize - 10.0f;
-        float offset = (CellSize - squareSize) / 2.0f;
+        auto& tilemap = m_scene.GetTilemap();
 
+        // Заполняем тайлмап клетками (а не сущностями!)
         for (int i = -m_gridRadius; i <= m_gridRadius; ++i)
         {
             for (int j = -m_gridRadius; j <= m_gridRadius; ++j)
             {
                 const Core::Color color = (i + j) % 2 == 0 ? Core::Color(80, 80, 80) : Core::Color(100, 100, 100);
-                const Core::EntityId id = m_scene.CreateEntity();
-                Core::Entity* entity = m_scene.FindEntity(id);
-                if (entity == nullptr) continue;
-
-                entity->transform.position.x = (i * CellSize) + offset;
-                entity->transform.position.y = (j * CellSize) + offset;
-                entity->width = squareSize;
-                entity->height = squareSize;
-                entity->color = color;
-                entity->isStatic = true;
+                tilemap.SetTile(i, j, Core::Tile{ color });
             }
         }
 
@@ -950,16 +953,16 @@ private:
             Kjarn::UI::UIColor inactiveColor = border;
 
             // Tool: Select
-            m_uiDrawList.AddFillRect({ 200.0f, 6.0f, 45.0f, 24.0f }, m_currentTool == EditorTool::Select ? accent : border);
-            m_uiDrawList.AddText({ 210.0f, 10.0f }, "Sel", text, 12.0f);
+            m_uiDrawList.AddFillRect({ 200.0f, 6.0f, 55.0f, 24.0f }, m_currentTool == EditorTool::Select ? accent : border);
+            m_uiDrawList.AddText({ 208.0f, 10.0f }, "Sel (V)", text, 12.0f);
 
             // Tool: Brush
-            m_uiDrawList.AddFillRect({ 250.0f, 6.0f, 45.0f, 24.0f }, m_currentTool == EditorTool::Brush ? accent : border);
-            m_uiDrawList.AddText({ 260.0f, 10.0f }, "Brush", text, 12.0f);
+            m_uiDrawList.AddFillRect({ 260.0f, 6.0f, 65.0f, 24.0f }, m_currentTool == EditorTool::Brush ? accent : border);
+            m_uiDrawList.AddText({ 268.0f, 10.0f }, "Brush (B)", text, 12.0f);
 
             // Tool: Eraser
-            m_uiDrawList.AddFillRect({ 300.0f, 6.0f, 45.0f, 24.0f }, m_currentTool == EditorTool::Eraser ? accent : border);
-            m_uiDrawList.AddText({ 310.0f, 10.0f }, "Eraser", text, 12.0f);
+            m_uiDrawList.AddFillRect({ 330.0f, 6.0f, 70.0f, 24.0f }, m_currentTool == EditorTool::Eraser ? accent : border);
+            m_uiDrawList.AddText({ 335.0f, 10.0f }, "Eraser (E)", text, 12.0f);
 
             // Кнопки фигур
             m_uiDrawList.AddFillRect({ 360.0f, 6.0f, 50.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Rectangle ? accent : border);
