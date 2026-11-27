@@ -64,16 +64,7 @@ protected:
             return;
         }
 
-        /*if (!m_isPlaying) {
-            if (Core::Input::IsKeyDown(VK_CONTROL)) {
-                if (Core::Input::IsKeyPressed('Z')) {
-                    m_history.Undo(m_scene.GetTilemap());
-                }
-                if (Core::Input::IsKeyPressed('Y')) {
-                    m_history.Redo(m_scene.GetTilemap());
-                }
-            }
-        }*/
+        
         // Обрабатываем скролл колесиком ДО обработки кликов
         float mx, my;
         Core::Input::GetMousePosition(mx, my);
@@ -323,6 +314,58 @@ private:
 
     Kjarn::Editor::EditorHistory m_history;
     Kjarn::Editor::Stroke m_currentStroke;
+
+    // Прямоугольник для UI элементов
+    struct UIRect {
+        float x, y, w, h;
+        bool Contains(float mx, float my) const {
+            return mx >= x && mx <= x + w && my >= y && my <= y + h;
+        }
+    };
+
+    // Структура со всеми кнопками верхней панели
+    struct TopBarLayout {
+        UIRect btnSelect, btnBrush, btnEraser;
+        UIRect btnRect, btnCircle, btnTri;
+        UIRect btnAddBlock, btnAddPlayer;
+        UIRect btnPlay;
+        UIRect btnNew, btnSave, btnLoad;
+    };
+
+    // Вычисляем позиции всех кнопок динамически
+    TopBarLayout GetTopBarLayout(float width) const {
+        TopBarLayout l;
+        float y = 6.0f;
+        float h = 24.0f;
+        float gap = 5.0f;
+        float x = 200.0f; // Отступ от меню "File Edit View"
+
+        // Инструменты
+        l.btnSelect = { x, y, 55.0f, h }; x += 55.0f + gap;
+        l.btnBrush = { x, y, 65.0f, h }; x += 65.0f + gap;
+        l.btnEraser = { x, y, 70.0f, h }; x += 70.0f + 15.0f; // Чуть больше отступ
+
+        // Фигуры
+        l.btnRect = { x, y, 50.0f, h }; x += 50.0f + gap;
+        l.btnCircle = { x, y, 50.0f, h }; x += 50.0f + gap;
+        l.btnTri = { x, y, 50.0f, h }; x += 50.0f + 15.0f;
+
+        // Создание
+        l.btnAddBlock = { x, y, 90.0f, h }; x += 90.0f + gap;
+        l.btnAddPlayer = { x, y, 80.0f, h }; x += 80.0f + 15.0f;
+
+        // Играть (фиксируем чуть правее)
+        l.btnPlay = { x, y, 80.0f, h };
+
+        // Кнопки справа (выравнивание по правому краю окна)
+        float rightX = width - 10.0f;
+        l.btnLoad = { rightX - 90.0f, y, 90.0f, h }; rightX -= 90.0f + gap;
+        l.btnSave = { rightX - 90.0f, y, 90.0f, h }; rightX -= 90.0f + gap;
+        l.btnNew = { rightX - 90.0f, y, 90.0f, h };
+
+        return l;
+    }
+
 
     Core::ShapeType m_currentShapeType = Core::ShapeType::Rectangle;
 
@@ -665,30 +708,24 @@ private:
         // Если клик был в верхней панели (высота 36), обрабатываем только кнопки UI
         if (my >= 0.0f && my <= TopBarHeight)
         {
-            // Кнопки инструментов (200 - 345)
-            if (mx >= 200.0f && mx <= 245.0f) m_currentTool = EditorTool::Select;
-            if (mx >= 250.0f && mx <= 295.0f) m_currentTool = EditorTool::Brush;
-            if (mx >= 300.0f && mx <= 345.0f) m_currentTool = EditorTool::Eraser;
+            TopBarLayout layout = GetTopBarLayout(width);
 
-            // Кнопки выбора фигуры (360 - 520)
-            if (mx >= 360.0f && mx <= 410.0f) m_currentShapeType = Core::ShapeType::Rectangle;
-            if (mx >= 415.0f && mx <= 465.0f) m_currentShapeType = Core::ShapeType::Circle;
-            if (mx >= 470.0f && mx <= 520.0f) m_currentShapeType = Core::ShapeType::Triangle;
+            if (layout.btnSelect.Contains(mx, my)) m_currentTool = EditorTool::Select;
+            if (layout.btnBrush.Contains(mx, my)) m_currentTool = EditorTool::Brush;
+            if (layout.btnEraser.Contains(mx, my)) m_currentTool = EditorTool::Eraser;
 
-            // Кнопки Save и Load справа
-            if (mx >= width - 200.0f && mx <= width - 110.0f) SaveScene("level.kjarn");
-            if (mx >= width - 100.0f && mx <= width - 10.0f) LoadScene("level.kjarn");
+            if (layout.btnRect.Contains(mx, my)) m_currentShapeType = Core::ShapeType::Rectangle;
+            if (layout.btnCircle.Contains(mx, my)) m_currentShapeType = Core::ShapeType::Circle;
+            if (layout.btnTri.Contains(mx, my)) m_currentShapeType = Core::ShapeType::Triangle;
 
-            // Кнопка Clear (Новая сцена)
-            if (mx >= width - 300.0f && mx <= width - 210.0f)
-            {
+            if (layout.btnNew.Contains(mx, my)) {
                 m_scene.Clear();
-                m_history = Kjarn::Editor::EditorHistory(); // Сбрасываем историю
+                m_history = Kjarn::Editor::EditorHistory();
                 BuildHierarchy();
             }
 
             // Кнопка Spawn Player (630 - 710)
-            if (mx >= 630.0f && mx <= 710.0f)
+            if (layout.btnAddPlayer.Contains(mx, my)) 
             {
                 Core::EntityId newId = m_scene.CreateEntity();
                 Core::Entity* newEntity = m_scene.FindEntity(newId);
@@ -708,7 +745,7 @@ private:
             }
 
             // Кнопка + Add Block (530 - 620)
-            if (mx >= 530.0f && mx <= 620.0f)
+            if (layout.btnAddBlock.Contains(mx, my)) 
             {
                 Core::EntityId newId = m_scene.CreateEntity();
                 Core::Entity* newEntity = m_scene.FindEntity(newId);
@@ -735,12 +772,10 @@ private:
             }
 
             // Кнопка Play/Stop (720 - 800)
-            if (mx >= 720.0f && mx <= 800.0f && my >= 6.0f && my <= 30.0f)
-            {
+            if (layout.btnPlay.Contains(mx, my)) {
                 StartPlayMode();
                 return;
             }
-
             return;
         }
 
@@ -969,48 +1004,52 @@ private:
             m_uiDrawList.AddFillRect({ 0.0f, 0.0f, width, TopBarHeight }, panelHeader);
             m_uiDrawList.AddText({ 14.0f, 9.0f }, "KJARN", accent, 17.0f);
             m_uiDrawList.AddText({ 100.0f, 11.0f }, "File    Edit    View    Project    Build    Help", text, 13.0f);
-            m_uiDrawList.AddFillRect({ 500.0f, 6.0f, 100.0f, 24.0f }, border);
 
-            // Кнопки Save и Load справа
-            m_uiDrawList.AddFillRect({ width - 200.0f, 6.0f, 90.0f, 24.0f }, border);
-            m_uiDrawList.AddText({ width - 185.0f, 10.0f }, "Save", text, 12.0f);
+            TopBarLayout layout = GetTopBarLayout(width);
 
-            m_uiDrawList.AddFillRect({ width - 100.0f, 6.0f, 90.0f, 24.0f }, border);
-            m_uiDrawList.AddText({ width - 85.0f, 10.0f }, "Load", text, 12.0f);
+            
+            // Инструменты
+            m_uiDrawList.AddFillRect({ layout.btnSelect.x, layout.btnSelect.y, layout.btnSelect.w, layout.btnSelect.h }, m_currentTool == EditorTool::Select ? accent : border);
+            m_uiDrawList.AddText({ layout.btnSelect.x + 8.0f, 10.0f }, "Sel (V)", text, 12.0f);
 
-            // Кнопка Clear
-            m_uiDrawList.AddFillRect({ width - 300.0f, 6.0f, 90.0f, 24.0f }, border);
-            m_uiDrawList.AddText({ width - 290.0f, 10.0f }, "New Scene", text, 12.0f);
+            m_uiDrawList.AddFillRect({ layout.btnBrush.x, layout.btnBrush.y, layout.btnBrush.w, layout.btnBrush.h }, m_currentTool == EditorTool::Brush ? accent : border);
+            m_uiDrawList.AddText({ layout.btnBrush.x + 8.0f, 10.0f }, "Brush (B)", text, 12.0f);
 
-            // Кнопки выбора фигуры
-            Kjarn::UI::UIColor activeColor = accent;
-            Kjarn::UI::UIColor inactiveColor = border;
+            m_uiDrawList.AddFillRect({ layout.btnEraser.x, layout.btnEraser.y, layout.btnEraser.w, layout.btnEraser.h }, m_currentTool == EditorTool::Eraser ? accent : border);
+            m_uiDrawList.AddText({ layout.btnEraser.x + 5.0f, 10.0f }, "Eraser (E)", text, 12.0f);
 
-            // Tool: Select
-            m_uiDrawList.AddFillRect({ 200.0f, 6.0f, 55.0f, 24.0f }, m_currentTool == EditorTool::Select ? accent : border);
-            m_uiDrawList.AddText({ 208.0f, 10.0f }, "Sel (V)", text, 12.0f);
+            // Фигуры
+            m_uiDrawList.AddFillRect({ layout.btnRect.x, layout.btnRect.y, layout.btnRect.w, layout.btnRect.h }, m_currentShapeType == Core::ShapeType::Rectangle ? accent : border);
+            m_uiDrawList.AddText({ layout.btnRect.x + 15.0f, 10.0f }, "Rect", text, 12.0f);
 
-            // Tool: Brush
-            m_uiDrawList.AddFillRect({ 260.0f, 6.0f, 65.0f, 24.0f }, m_currentTool == EditorTool::Brush ? accent : border);
-            m_uiDrawList.AddText({ 268.0f, 10.0f }, "Brush (B)", text, 12.0f);
+            m_uiDrawList.AddFillRect({ layout.btnCircle.x, layout.btnCircle.y, layout.btnCircle.w, layout.btnCircle.h }, m_currentShapeType == Core::ShapeType::Circle ? accent : border);
+            m_uiDrawList.AddText({ layout.btnCircle.x + 10.0f, 10.0f }, "Circle", text, 12.0f);
 
-            // Tool: Eraser
-            m_uiDrawList.AddFillRect({ 330.0f, 6.0f, 70.0f, 24.0f }, m_currentTool == EditorTool::Eraser ? accent : border);
-            m_uiDrawList.AddText({ 335.0f, 10.0f }, "Eraser (E)", text, 12.0f);
+            m_uiDrawList.AddFillRect({ layout.btnTri.x, layout.btnTri.y, layout.btnTri.w, layout.btnTri.h }, m_currentShapeType == Core::ShapeType::Triangle ? accent : border);
+            m_uiDrawList.AddText({ layout.btnTri.x + 15.0f, 10.0f }, "Tri", text, 12.0f);
 
-            // Кнопки фигур
-            m_uiDrawList.AddFillRect({ 360.0f, 6.0f, 50.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Rectangle ? accent : border);
-            m_uiDrawList.AddText({ 375.0f, 10.0f }, "Rect", text, 12.0f);
+            // Создание
+            m_uiDrawList.AddFillRect({ layout.btnAddBlock.x, layout.btnAddBlock.y, layout.btnAddBlock.w, layout.btnAddBlock.h }, border);
+            m_uiDrawList.AddText({ layout.btnAddBlock.x + 10.0f, 10.0f }, "+ Add Block", text, 12.0f);
 
-            m_uiDrawList.AddFillRect({ 415.0f, 6.0f, 50.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Circle ? accent : border);
-            m_uiDrawList.AddText({ 430.0f, 10.0f }, "Circle", text, 12.0f);
+            m_uiDrawList.AddFillRect({ layout.btnAddPlayer.x, layout.btnAddPlayer.y, layout.btnAddPlayer.w, layout.btnAddPlayer.h }, { 50, 150, 255, 255 });
+            m_uiDrawList.AddText({ layout.btnAddPlayer.x + 10.0f, 10.0f }, "+ Player", text, 12.0f);
 
-            m_uiDrawList.AddFillRect({ 470.0f, 6.0f, 50.0f, 24.0f }, m_currentShapeType == Core::ShapeType::Triangle ? accent : border);
-            m_uiDrawList.AddText({ 480.0f, 10.0f }, "Tri", text, 12.0f);
+            // PLAY / STOP
+            m_uiDrawList.AddFillRect({ layout.btnPlay.x, layout.btnPlay.y, layout.btnPlay.w, layout.btnPlay.h }, m_isPlaying ? Kjarn::UI::UIColor{ 200, 60, 60, 255 } : Kjarn::UI::UIColor{ 80, 180, 80, 255 });
+            m_uiDrawList.AddText({ layout.btnPlay.x + 20.0f, 10.0f }, m_isPlaying ? "■ STOP" : "▶ PLAY", text, 12.0f);
 
-            // Кнопка Add Block
-            m_uiDrawList.AddFillRect({ 530.0f, 6.0f, 90.0f, 24.0f }, border);
-            m_uiDrawList.AddText({ 540.0f, 10.0f }, "+ Add Block", text, 12.0f);
+            // Кнопки справа (New, Save, Load)
+            m_uiDrawList.AddFillRect({ layout.btnNew.x, layout.btnNew.y, layout.btnNew.w, layout.btnNew.h }, border);
+            m_uiDrawList.AddText({ layout.btnNew.x + 10.0f, 10.0f }, "New Scene", text, 12.0f);
+
+            m_uiDrawList.AddFillRect({ layout.btnSave.x, layout.btnSave.y, layout.btnSave.w, layout.btnSave.h }, border);
+            m_uiDrawList.AddText({ layout.btnSave.x + 25.0f, 10.0f }, "Save", text, 12.0f);
+
+            m_uiDrawList.AddFillRect({ layout.btnLoad.x, layout.btnLoad.y, layout.btnLoad.w, layout.btnLoad.h }, border);
+            m_uiDrawList.AddText({ layout.btnLoad.x + 25.0f, 10.0f }, "Load", text, 12.0f);
+
+            m_uiDrawList.AddLine({ 0.0f, TopBarHeight }, { width, TopBarHeight }, border);
 
             m_uiDrawList.AddFillRect({ 0.0f, TopBarHeight, leftPanelWidth, height - TopBarHeight - BottomBarHeight }, panel);
             m_uiDrawList.AddFillRect({ 0.0f, TopBarHeight, leftPanelWidth, 32.0f }, panelHeader);
@@ -1019,19 +1058,6 @@ private:
             m_uiDrawList.AddText({ 14.0f, TopBarHeight + 40.0f }, "Scene", text, 13.0f);
 
 
-            // Кнопка Player
-            m_uiDrawList.AddFillRect({ 630.0f, 6.0f, 80.0f, 24.0f }, { 50, 150, 255, 255 });
-            m_uiDrawList.AddText({ 640.0f, 10.0f }, "+ Player", text, 12.0f);
-
-            // Кнопка PLAY / STOP
-            if (!m_isPlaying) {
-                m_uiDrawList.AddFillRect({ 720.0f, 6.0f, 80.0f, 24.0f }, { 80, 180, 80, 255 }); // Зеленая
-                m_uiDrawList.AddText({ 740.0f, 10.0f }, "▶ PLAY", text, 12.0f);
-            }
-            else {
-                m_uiDrawList.AddFillRect({ 720.0f, 6.0f, 80.0f, 24.0f }, { 200, 60, 60, 255 }); // Красная
-                m_uiDrawList.AddText({ 740.0f, 10.0f }, "■ STOP", text, 12.0f);
-            }
 
             const std::size_t visibleCount = GetVisibleHierarchyCount();
             // Отрисовка списка с учетом скролла
