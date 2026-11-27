@@ -8,6 +8,7 @@
 #include "Core/Scene/Scene.h"
 #include "Core/Scene/SceneSerializer.h"
 #include "Editor/Tools/BrushTool.h"
+#include "Editor/History/EditorHistory.h"
 
 #include "Platform/Win32/Window.h"
 #include "Platform/Win32/Input.h"
@@ -63,6 +64,16 @@ protected:
             return;
         }
 
+        /*if (!m_isPlaying) {
+            if (Core::Input::IsKeyDown(VK_CONTROL)) {
+                if (Core::Input::IsKeyPressed('Z')) {
+                    m_history.Undo(m_scene.GetTilemap());
+                }
+                if (Core::Input::IsKeyPressed('Y')) {
+                    m_history.Redo(m_scene.GetTilemap());
+                }
+            }
+        }*/
         // Обрабатываем скролл колесиком ДО обработки кликов
         float mx, my;
         Core::Input::GetMousePosition(mx, my);
@@ -132,6 +143,10 @@ protected:
         }
 
         // --- ГОРЯЧИЕ КЛАВИШИ ИНСТРУМЕНТОВ ---
+        if (Core::Input::IsKeyDown(VK_CONTROL)) {
+            if (Core::Input::IsKeyPressed('Z')) m_history.Undo(m_scene.GetTilemap());
+            if (Core::Input::IsKeyPressed('Y')) m_history.Redo(m_scene.GetTilemap());
+        }
         if (Core::Input::IsKeyPressed('B')) m_currentTool = EditorTool::Brush;
         if (Core::Input::IsKeyPressed('E')) m_currentTool = EditorTool::Eraser;
         if (Core::Input::IsKeyPressed('V')) m_currentTool = EditorTool::Select;
@@ -306,6 +321,9 @@ private:
     int m_lastPaintCellY = 0;
     bool m_isPainting = false;
 
+    Kjarn::Editor::EditorHistory m_history;
+    Kjarn::Editor::Stroke m_currentStroke;
+
     Core::ShapeType m_currentShapeType = Core::ShapeType::Rectangle;
 
     Core::Scene& GetActiveScene()
@@ -393,21 +411,21 @@ private:
                 float worldX, worldY;
                 m_camera.ScreenToWorld(mouseX, mouseY, w, h, worldX, worldY);
 
-                // Используем floor для точного попадания в клетку
                 int cellX = (int)std::floor(worldX / CellSize);
                 int cellY = (int)std::floor(worldY / CellSize);
 
                 bool isErasing = (m_currentTool == EditorTool::Eraser);
-                Core::Color paintColor(200, 100, 50); // Оранжевый цвет по умолчанию
+                Core::Color paintColor(200, 100, 50); // Оранжевый цвет
 
                 if (!m_isPainting) {
-                    // Первое нажатие (рисуем одну точку)
+                    // Начало мазка
                     m_isPainting = true;
-                    m_brushTool.PaintLine(m_scene.GetTilemap(), cellX, cellY, cellX, cellY, paintColor, isErasing);
+                    m_currentStroke = {}; // Очищаем историю текущего мазка
+                    m_brushTool.PaintLine(m_scene.GetTilemap(), cellX, cellY, cellX, cellY, paintColor, isErasing, m_currentStroke);
                 }
                 else {
-                    // Протяжка мыши (рисуем линию от прошлой клетки к текущей)
-                    m_brushTool.PaintLine(m_scene.GetTilemap(), m_lastPaintCellX, m_lastPaintCellY, cellX, cellY, paintColor, isErasing);
+                    // Протяжка
+                    m_brushTool.PaintLine(m_scene.GetTilemap(), m_lastPaintCellX, m_lastPaintCellY, cellX, cellY, paintColor, isErasing, m_currentStroke);
                 }
 
                 m_lastPaintCellX = cellX;
@@ -415,7 +433,11 @@ private:
             }
             else
             {
-                m_isPainting = false;
+                // Отпустили кнопку мыши — завершаем мазок
+                if (m_isPainting) {
+                    m_isPainting = false;
+                    m_history.Push(m_currentStroke); // Сохраняем в историю
+                }
             }
             return;
         }
