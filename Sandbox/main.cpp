@@ -679,6 +679,14 @@ private:
             if (mx >= width - 200.0f && mx <= width - 110.0f) SaveScene("level.kjarn");
             if (mx >= width - 100.0f && mx <= width - 10.0f) LoadScene("level.kjarn");
 
+            // Кнопка Clear (Новая сцена)
+            if (mx >= width - 300.0f && mx <= width - 210.0f)
+            {
+                m_scene.Clear();
+                m_history = Kjarn::Editor::EditorHistory(); // Сбрасываем историю
+                BuildHierarchy();
+            }
+
             // Кнопка Spawn Player (630 - 710)
             if (mx >= 630.0f && mx <= 710.0f)
             {
@@ -969,6 +977,10 @@ private:
 
             m_uiDrawList.AddFillRect({ width - 100.0f, 6.0f, 90.0f, 24.0f }, border);
             m_uiDrawList.AddText({ width - 85.0f, 10.0f }, "Load", text, 12.0f);
+
+            // Кнопка Clear
+            m_uiDrawList.AddFillRect({ width - 300.0f, 6.0f, 90.0f, 24.0f }, border);
+            m_uiDrawList.AddText({ width - 290.0f, 10.0f }, "New Scene", text, 12.0f);
 
             // Кнопки выбора фигуры
             Kjarn::UI::UIColor activeColor = accent;
