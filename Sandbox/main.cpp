@@ -304,7 +304,7 @@ private:
     bool m_isDraggingScrollbar = false;
     float m_scrollbarDragOffsetY = 0.0f;
 
-    enum class EditorTool { Select, Brush, Eraser };
+    enum class EditorTool { Select, Brush, Eraser, PlaceEntity};
     EditorTool m_currentTool = EditorTool::Select;
 
     Kjarn::Editor::BrushTool m_brushTool;
@@ -314,6 +314,20 @@ private:
 
     Kjarn::Editor::EditorHistory m_history;
     Kjarn::Editor::Stroke m_currentStroke;
+
+
+    enum class EntityType { Player, Crate, Tree };
+    EntityType m_selectedEntityType = EntityType::Crate;
+
+    // Палитра цветов для кисти
+    std::vector<Core::Color> m_paletteColors = {
+        Core::Color(80, 80, 80),   // Stone
+        Core::Color(50, 150, 50),  // Grass
+        Core::Color(50, 50, 200),  // Water
+        Core::Color(200, 150, 50), // Sand
+        Core::Color(200, 50, 50)   // Lava
+    };
+    Core::Color m_brushColor = Core::Color(80, 80, 80);
 
     // Прямоугольник для UI элементов
     struct UIRect {
@@ -408,6 +422,40 @@ private:
         }
     }
 
+    void SpawnPrefab(EntityType type, float gridX, float gridY)
+    {
+        Core::EntityId id = m_scene.CreateEntity();
+        Core::Entity* ent = m_scene.FindEntity(id);
+        if (!ent) return;
+
+        float sizeX = CellSize - 10.0f;
+        float sizeY = CellSize - 10.0f;
+
+        if (type == EntityType::Player) {
+            sizeX = 40.0f; sizeY = 60.0f;
+            ent->isPlayer = true;
+            ent->color = Core::Color(50, 150, 255);
+        }
+        else if (type == EntityType::Crate) {
+            sizeX = 80.0f; sizeY = 80.0f;
+            ent->color = Core::Color(150, 80, 50);
+        }
+        else if (type == EntityType::Tree) {
+            sizeX = 60.0f; sizeY = 100.0f;
+            ent->color = Core::Color(50, 150, 50);
+            ent->isStatic = true;
+        }
+
+        ent->width = sizeX;
+        ent->height = sizeY;
+        // Центрируем в клетке
+        ent->transform.position.x = gridX + (CellSize - sizeX) / 2.0f;
+        ent->transform.position.y = gridY + (CellSize - sizeY) / 2.0f;
+
+        m_selectedEntityIds = { id };
+        BuildHierarchy();
+    }
+
     // --- ЛОГИКА СТАРТОВОГО МЕНЮ ---
     void HandleStartupMenu()
     {
@@ -446,6 +494,22 @@ private:
         const float w = (float)GetRenderer().GetWidth();
         const float h = (float)GetRenderer().GetHeight();
 
+        // --- РЕЖИМ РАЗМЕЩЕНИЯ ОБЪЕКТОВ (PlaceEntity) ---
+        if (m_currentTool == EditorTool::PlaceEntity)
+        {
+            if (Core::Input::IsLeftMouseButtonPressed() && IsMouseOverViewport(mouseX, mouseY))
+            {
+                float worldX, worldY;
+                m_camera.ScreenToWorld(mouseX, mouseY, w, h, worldX, worldY);
+
+                float gridX = std::floor(worldX / CellSize) * CellSize;
+                float gridY = std::floor(worldY / CellSize) * CellSize;
+
+                SpawnPrefab(m_selectedEntityType, gridX, gridY);
+            }
+            return;
+        }
+
         // --- РЕЖИМ КИСТИ / ЛАСТИКА ---
         if (m_currentTool == EditorTool::Brush || m_currentTool == EditorTool::Eraser)
         {
@@ -458,7 +522,7 @@ private:
                 int cellY = (int)std::floor(worldY / CellSize);
 
                 bool isErasing = (m_currentTool == EditorTool::Eraser);
-                Core::Color paintColor(200, 100, 50); // Оранжевый цвет
+                Core::Color paintColor = m_brushColor;
 
                 if (!m_isPainting) {
                     // Начало мазка
@@ -636,6 +700,46 @@ private:
         const float width = (float)GetRenderer().GetWidth();
         const float height = (float)GetRenderer().GetHeight();
 
+        // --- ОБРАБОТКА ПРАВОЙ ПАНЕЛИ (Палитры) ---
+        const float rightPanelWidth = std::min(280.0f, width * 0.30f);
+        const float rightPanelX = std::max(GetLeftPanelWidth(), width - rightPanelWidth);
+        
+        if (!Core::Input::IsLeftMouseButtonPressed()) return;
+
+        // Клики по цветам
+        for (size_t i = 0; i < m_paletteColors.size(); ++i) {
+            float bx = rightPanelX + 12.0f + i * 32.0f;
+            float by = TopBarHeight + 60.0f;
+            if (mx >= bx && mx <= bx + 26.0f && my >= by && my <= by + 26.0f) {
+                m_brushColor = m_paletteColors[i];
+                m_currentTool = EditorTool::Brush; // Авто-переключение на кисть
+                return;
+            }
+        }
+
+        // Клики по префабам
+        float ey = TopBarHeight + 120.0f;
+        if (my >= ey && my <= ey + 30.0f) {
+            if (mx >= rightPanelX + 12.0f && mx <= rightPanelX + 82.0f) {
+                m_selectedEntityType = EntityType::Player;
+                m_currentTool = EditorTool::PlaceEntity;
+                return;
+            }
+            if (mx >= rightPanelX + 92.0f && mx <= rightPanelX + 162.0f) {
+                m_selectedEntityType = EntityType::Crate;
+                m_currentTool = EditorTool::PlaceEntity;
+                return;
+            }
+            if (mx >= rightPanelX + 172.0f && mx <= rightPanelX + 242.0f) {
+                m_selectedEntityType = EntityType::Tree;
+                m_currentTool = EditorTool::PlaceEntity;
+                return;
+            }
+        }
+
+        // --- ИНСПЕКТОР (чекбокс) ---
+        // (сдвинь проверку чекбокса cbY с 200.0f на TopBarHeight + 250.0f)
+
         // Проверяем, не схватили ли мы ползунок скроллбара
         if (Core::Input::IsLeftMouseButtonPressed() && !m_isDraggingScrollbar)
         {
@@ -658,25 +762,21 @@ private:
             }
         }
 
-        if (!Core::Input::IsLeftMouseButtonPressed()) return;
+        
 
         // Обработка чекбокса Is Static в Inspector.
         if (!m_isPlaying && !m_selectedEntityIds.empty())
         {
             const float rightPanelWidth = std::min(280.0f, width * 0.30f);
-            const float rightPanelX = std::max(
-                GetLeftPanelWidth(),
-                width - rightPanelWidth
-            );
-
+            const float rightPanelX = std::max(GetLeftPanelWidth(), width - rightPanelWidth);
             const float inspectorX = rightPanelX + 12.0f;
 
-            const float cbY = 200.0f;
+            float insY = TopBarHeight + 200.0f;
+            const float cbY = insY + 100.0f; // 👈 Та же координата, что и при отрисовке
             const float cbX = inspectorX + 120.0f;
             const float cbSize = 14.0f;
 
-            if (mx >= cbX && mx <= cbX + cbSize &&
-                my >= cbY && my <= cbY + cbSize)
+            if (mx >= cbX && mx <= cbX + cbSize && my >= cbY && my <= cbY + cbSize)
             {
                 bool allStatic = true;
 
@@ -1102,58 +1202,87 @@ private:
 
                 m_uiDrawList.AddFillRect({ scrollbarX, thumbY, scrollbarWidth, thumbHeight }, border);
             }
-
+            // === ПРАВАЯ ПАНЕЛЬ ===
             m_uiDrawList.AddFillRect({ rightPanelX, TopBarHeight, width - rightPanelX, height - TopBarHeight - BottomBarHeight }, panel);
             m_uiDrawList.AddFillRect({ rightPanelX, TopBarHeight, width - rightPanelX, 32.0f }, panelHeader);
-            m_uiDrawList.AddText({ rightPanelX + 12.0f, TopBarHeight + 8.0f }, "INSPECTOR", text, 12.0f);
+            m_uiDrawList.AddText({ rightPanelX + 12.0f, TopBarHeight + 8.0f }, "EDITOR PANEL", text, 12.0f);
             m_uiDrawList.AddLine({ rightPanelX, TopBarHeight }, { rightPanelX, height - BottomBarHeight }, border);
+
+            // 1. Палитра цветов кисти
+            m_uiDrawList.AddText({ rightPanelX + 12.0f, TopBarHeight + 45.0f }, "TERRAIN COLORS", text, 11.0f);
+            for (size_t i = 0; i < m_paletteColors.size(); ++i) {
+                float bx = rightPanelX + 12.0f + i * 32.0f;
+                float by = TopBarHeight + 60.0f;
+                auto c = m_paletteColors[i];
+                m_uiDrawList.AddFillRect({ bx, by, 26.0f, 26.0f }, { c.r, c.g, c.b, 255 });
+                // Обводка выбранного цвета
+                if (m_brushColor.r == c.r && m_brushColor.g == c.g && m_brushColor.b == c.b) {
+                    m_uiDrawList.AddFillRect({ bx - 2, by - 2, 30.0f, 30.0f }, accent); // Фон под рамку
+                    m_uiDrawList.AddFillRect({ bx, by, 26.0f, 26.0f }, { c.r, c.g, c.b, 255 });
+                }
+            }
+
+            // 2. Палитра префабов (Объектов)
+            m_uiDrawList.AddText({ rightPanelX + 12.0f, TopBarHeight + 105.0f }, "ENTITY PREFABS", text, 11.0f);
+            float ey = TopBarHeight + 120.0f;
+
+            m_uiDrawList.AddFillRect({ rightPanelX + 12.0f, ey, 70.0f, 30.0f }, m_selectedEntityType == EntityType::Player ? accent : border);
+            m_uiDrawList.AddText({ rightPanelX + 20.0f, ey + 8.0f }, "Player", text, 12.0f);
+
+            m_uiDrawList.AddFillRect({ rightPanelX + 92.0f, ey, 70.0f, 30.0f }, m_selectedEntityType == EntityType::Crate ? accent : border);
+            m_uiDrawList.AddText({ rightPanelX + 100.0f, ey + 8.0f }, "Crate", text, 12.0f);
+
+            m_uiDrawList.AddFillRect({ rightPanelX + 172.0f, ey, 70.0f, 30.0f }, m_selectedEntityType == EntityType::Tree ? accent : border);
+            m_uiDrawList.AddText({ rightPanelX + 180.0f, ey + 8.0f }, "Tree", text, 12.0f);
+
+            // 3. Инспектор (сдвигаем ниже)
+            m_uiDrawList.AddText({ rightPanelX + 12.0f, TopBarHeight + 170.0f }, "INSPECTOR", text, 11.0f);
+            m_uiDrawList.AddLine({ rightPanelX, TopBarHeight + 190.0f }, { rightPanelX + rightPanelWidth, TopBarHeight + 190.0f }, border);
+
+            float insY = TopBarHeight + 200.0f;
 
             if (!m_selectedEntityIds.empty())
             {
                 const float inspectorX = rightPanelX + 12.0f;
 
-                // Показываем информацию о выделении
                 if (m_selectedEntityIds.size() == 1)
                 {
                     const Core::Entity* selected = m_scene.FindEntity(m_selectedEntityIds[0]);
                     if (selected) {
                         int gridX = (int)(selected->transform.position.x / CellSize);
                         int gridY = (int)(selected->transform.position.y / CellSize);
-                        m_uiDrawList.AddText({ inspectorX, 80.0f }, "Cell (" + std::to_string(gridX) + ", " + std::to_string(gridY) + ")", accent, 14.0f);
-                        m_uiDrawList.AddText({ inspectorX, 140.0f }, "Position X: " + std::to_string((int)selected->transform.position.x), secondaryText, 12.0f);
-                        m_uiDrawList.AddText({ inspectorX, 162.0f }, "Position Y: " + std::to_string((int)selected->transform.position.y), secondaryText, 12.0f);
+                        m_uiDrawList.AddText({ inspectorX, insY }, "Cell (" + std::to_string(gridX) + ", " + std::to_string(gridY) + ")", accent, 14.0f);
+                        m_uiDrawList.AddText({ inspectorX, insY + 40.0f }, "Position X: " + std::to_string((int)selected->transform.position.x), secondaryText, 12.0f);
+                        m_uiDrawList.AddText({ inspectorX, insY + 60.0f }, "Position Y: " + std::to_string((int)selected->transform.position.y), secondaryText, 12.0f);
                     }
                 }
                 else
                 {
-                    m_uiDrawList.AddText({ inspectorX, 80.0f }, std::to_string(m_selectedEntityIds.size()) + " objects selected", accent, 14.0f);
+                    m_uiDrawList.AddText({ inspectorX, insY }, std::to_string(m_selectedEntityIds.size()) + " objects selected", accent, 14.0f);
                 }
 
                 // ОБЩИЙ ЧЕКБОКС ДЛЯ ВСЕХ ВЫДЕЛЕННЫХ
-                float cbY = 200.0f;
+                float cbY = insY + 100.0f; // Сдвинули вниз
                 m_uiDrawList.AddText({ inspectorX, cbY + 2.0f }, "Is Static (Ground):", text, 12.0f);
 
-                // Координаты квадратика чекбокса
                 float cbX = inspectorX + 120.0f;
                 float cbSize = 14.0f;
 
                 m_uiDrawList.AddFillRect({ cbX, cbY, cbSize, cbSize }, border);
 
-                // Проверяем, все ли выделенные объекты статичны
                 bool allStatic = true;
                 for (auto id : m_selectedEntityIds) {
                     auto* e = m_scene.FindEntity(id);
                     if (e && !e->isStatic) { allStatic = false; break; }
                 }
 
-                // Если все статичны, рисуем галочку (заливку)
                 if (allStatic) {
                     m_uiDrawList.AddFillRect({ cbX + 2.0f, cbY + 2.0f, cbSize - 4.0f, cbSize - 4.0f }, accent);
                 }
             }
             else
             {
-                m_uiDrawList.AddText({ rightPanelX + 12.0f, 80.0f }, "No object selected", secondaryText, 12.0f);
+                m_uiDrawList.AddText({ rightPanelX + 12.0f, insY }, "No object selected", secondaryText, 12.0f);
             }
 
 
