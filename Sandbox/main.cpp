@@ -951,6 +951,8 @@ private:
         // Физика работает только с Runtime Scene.
         Core::Physics::UpdateScene(
             m_runtimeScene.GetEntities(),
+            m_runtimeScene.GetTilemap(),
+            CellSize,
             deltaTime,
             m_gravity
         );
