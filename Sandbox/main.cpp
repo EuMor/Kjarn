@@ -218,19 +218,33 @@ protected:
                 renderer.DrawRect(m_camera, worldX, worldY, size, size, tile.color);
             }
 
-            // 3. Отрисовка Сущностей (игрок, враги)
-            for (const auto& entity : activeScene.GetEntities())
+            // 3. Отрисовка Сущностей (с сортировкой по Y)
+            // Создаем временный массив указателей и сортируем его
+            std::vector<const Core::Entity*> sortedEntities;
+            for (const auto& entity : activeScene.GetEntities()) {
+                sortedEntities.push_back(&entity);
+            }
+
+            // Сортируем: кто выше по экрану (меньше Y), тот рисуется раньше (сзади)
+            std::sort(sortedEntities.begin(), sortedEntities.end(),
+                [](const Core::Entity* a, const Core::Entity* b) {
+                    return a->transform.position.y < b->transform.position.y;
+                });
+
+            // Отрисовываем в отсортированном порядке
+            for (const auto* entity : sortedEntities)
             {
-                if (entity.shape == Core::ShapeType::Circle) {
-                    renderer.DrawCircle(m_camera, entity.transform.position.x, entity.transform.position.y, entity.width, entity.height, entity.color);
+                if (entity->shape == Core::ShapeType::Circle) {
+                    renderer.DrawCircle(m_camera, entity->transform.position.x, entity->transform.position.y, entity->width, entity->height, entity->color);
                 }
-                else if (entity.shape == Core::ShapeType::Triangle) {
-                    renderer.DrawTriangle(m_camera, entity.transform.position.x, entity.transform.position.y, entity.width, entity.height, entity.color);
+                else if (entity->shape == Core::ShapeType::Triangle) {
+                    renderer.DrawTriangle(m_camera, entity->transform.position.x, entity->transform.position.y, entity->width, entity->height, entity->color);
                 }
                 else {
-                    renderer.DrawRect(m_camera, entity.transform.position.x, entity.transform.position.y, entity.width, entity.height, entity.color);
+                    renderer.DrawRect(m_camera, entity->transform.position.x, entity->transform.position.y, entity->width, entity->height, entity->color);
                 }
             }
+
             // 4. Подсветка
             for (Core::EntityId id : m_selectedEntityIds)
             {
