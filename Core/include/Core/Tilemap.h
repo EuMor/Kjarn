@@ -6,9 +6,16 @@
 
 namespace Core {
 
+    enum class TilePattern {
+        Solid,  // Просто цвет
+        Grass,  // Трава (добавим темные травинки)
+        Stone,  // Камень (добавим серые трещины)
+        Water   // Вода (добавим светлые блики)
+    };
     // Структура одного тайла (клетки)
     struct Tile {
         Color color;
+        TilePattern pattern = TilePattern::Solid;
         // В будущем сюда можно добавить ID текстуры, тип коллизии и т.д.
     };
 

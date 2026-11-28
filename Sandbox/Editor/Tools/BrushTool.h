@@ -1,4 +1,4 @@
-#pragma once
+п»ї#pragma once
 #include "Core/Tilemap.h"
 #include "Core/Color.h"
 #include "Editor/History/EditorHistory.h"
@@ -10,7 +10,7 @@ namespace Kjarn::Editor {
 
     class BrushTool {
     public:
-        void PaintLine(Core::Tilemap& tilemap, int x0, int y0, int x1, int y1, Core::Color color, bool isErasing, Stroke& stroke) {
+        void PaintLine(Core::Tilemap& tilemap, int x0, int y0, int x1, int y1, Core::Color color, Core::TilePattern pattern, bool isErasing, Stroke& stroke) {
             int dx = std::abs(x1 - x0);
             int dy = std::abs(y1 - y0);
             int sx = (x0 < x1) ? 1 : -1;
@@ -18,7 +18,7 @@ namespace Kjarn::Editor {
             int err = dx - dy;
 
             while (true) {
-                ApplyBrush(tilemap, x0, y0, color, isErasing, stroke);
+                ApplyBrush(tilemap, x0, y0, color, pattern, isErasing, stroke);
                 if (x0 == x1 && y0 == y1) break;
                 int e2 = 2 * err;
                 if (e2 > -dy) { err -= dy; x0 += sx; }
@@ -27,25 +27,21 @@ namespace Kjarn::Editor {
         }
 
     private:
-        void ApplyBrush(Core::Tilemap& tilemap, int x, int y, Core::Color color, bool isErasing, Stroke& stroke) {
+        void ApplyBrush(Core::Tilemap& tilemap, int x, int y, Core::Color color, Core::TilePattern pattern, bool isErasing, Stroke& stroke) {
             int64_t key = Core::Tilemap::PackKey(x, y);
 
-            // Если мы уже трогали эту клетку в этом мазке — пропускаем
             if (stroke.after.find(key) != stroke.after.end()) return;
 
             const Core::Tile* existing = tilemap.GetTile(x, y);
-
-            // Запоминаем состояние ДО
             if (existing) stroke.before[key] = *existing;
             else stroke.before[key] = std::nullopt;
 
-            // Меняем тайлмап
             if (isErasing) {
                 tilemap.EraseTile(x, y);
                 stroke.after[key] = std::nullopt;
             }
             else {
-                Core::Tile newTile{ color };
+                Core::Tile newTile{ color, pattern }; // рџ‘€ РўР•РџР•Р Р¬ РџР•Р Р•Р”РђР•Рњ Р РџРђРўРўР•Р Рќ
                 tilemap.SetTile(x, y, newTile);
                 stroke.after[key] = newTile;
             }

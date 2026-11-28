@@ -36,6 +36,7 @@ namespace Core {
                 worldY >= y && worldY <= y + height;
         }
 
+        int zIndex = 0;
 
         //ÔÈÇÈÊÀ
         float velocityX = 0.0f;

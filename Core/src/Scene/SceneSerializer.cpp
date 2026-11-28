@@ -1,4 +1,4 @@
-#include "Core/Scene/SceneSerializer.h"
+п»ї#include "Core/Scene/SceneSerializer.h"
 
 #include "Core/Scene/Scene.h"
 #include "Core/Tilemap.h"
@@ -19,23 +19,23 @@
 #include <utility>
 #include <vector>
 
-// Формат сцены — текст, одна запись на строку. Пустые строки и строки,
-// начинающиеся с '#', пропускаются. Save пишет V4, Load читает V4, V3 и V2.
+// Р¤РѕСЂРјР°С‚ СЃС†РµРЅС‹ вЂ” С‚РµРєСЃС‚, РѕРґРЅР° Р·Р°РїРёСЃСЊ РЅР° СЃС‚СЂРѕРєСѓ. РџСѓСЃС‚С‹Рµ СЃС‚СЂРѕРєРё Рё СЃС‚СЂРѕРєРё,
+// РЅР°С‡РёРЅР°СЋС‰РёРµСЃСЏ СЃ '#', РїСЂРѕРїСѓСЃРєР°СЋС‚СЃСЏ. Save РїРёС€РµС‚ V4, Load С‡РёС‚Р°РµС‚ V4, V3 Рё V2.
 //
-// V4 (текущий):
+// V4 (С‚РµРєСѓС‰РёР№):
 //   KJARN_SCENE_V4
 //   TILE <x> <y> <r> <g> <b>
 //   ENTITY id=<n> shape=<RECT|CIRCLE|TRIANGLE> pos=<x>,<y>,<z> size=<w>,<h> color=<r>,<g>,<b>
 //          [rot=<x>,<y>,<z>] [scale=<x>,<y>,<z>] [player=1] [static=1] [gravity=1]
-//   END tiles=<число TILE> entities=<число ENTITY>
+//   END tiles=<С‡РёСЃР»Рѕ TILE> entities=<С‡РёСЃР»Рѕ ENTITY>
 //
-// V3 (прежний master): TILE как в V4, ENTITY <shape> <x> <y> <w> <h> <r> <g> <b>.
-//   id и флаги в V3 не хранились: id выдаются заново с 1, флаги сброшены.
+// V3 (РїСЂРµР¶РЅРёР№ master): TILE РєР°Рє РІ V4, ENTITY <shape> <x> <y> <w> <h> <r> <g> <b>.
+//   id Рё С„Р»Р°РіРё РІ V3 РЅРµ С…СЂР°РЅРёР»РёСЃСЊ: id РІС‹РґР°СЋС‚СЃСЏ Р·Р°РЅРѕРІРѕ СЃ 1, С„Р»Р°РіРё СЃР±СЂРѕС€РµРЅС‹.
 //
-// V2 (коммит 8394e5c): ENTITY_COUNT <n>, затем
+// V2 (РєРѕРјРјРёС‚ 8394e5c): ENTITY_COUNT <n>, Р·Р°С‚РµРј
 //   ENTITY <id> <shape> <pos xyz> <rot xyz> <scale xyz> <w> <h> <r> <g> <b> <isStatic> <useGravity> <isPlayer>
 //
-// Не сохраняются velocityX/velocityY и isGrounded: это состояние Play-режима.
+// РќРµ СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ velocityX/velocityY Рё isGrounded: СЌС‚Рѕ СЃРѕСЃС‚РѕСЏРЅРёРµ Play-СЂРµР¶РёРјР°.
 
 namespace Core
 {
@@ -44,8 +44,9 @@ namespace Core
         constexpr std::string_view HeaderV2 = "KJARN_SCENE_V2";
         constexpr std::string_view HeaderV3 = "KJARN_SCENE_V3";
         constexpr std::string_view HeaderV4 = "KJARN_SCENE_V4";
+        constexpr std::string_view HeaderV5 = "KJARN_SCENE_V5";
 
-        // Файл крупнее — почти наверняка не сцена; целиком в память не читаем.
+        // Р¤Р°Р№Р» РєСЂСѓРїРЅРµРµ вЂ” РїРѕС‡С‚Рё РЅР°РІРµСЂРЅСЏРєР° РЅРµ СЃС†РµРЅР°; С†РµР»РёРєРѕРј РІ РїР°РјСЏС‚СЊ РЅРµ С‡РёС‚Р°РµРј.
         constexpr std::uintmax_t MaxFileSize = 256ull * 1024 * 1024;
 
         bool ReportError(std::string* error, std::string message)
@@ -56,8 +57,8 @@ namespace Core
             return false;
         }
 
-        // Кусок файла для сообщения об ошибке. Только печатный ASCII: сообщение
-        // попадает в UI, а UTF-8 с битыми байтами отрисовка отбросит целиком.
+        // РљСѓСЃРѕРє С„Р°Р№Р»Р° РґР»СЏ СЃРѕРѕР±С‰РµРЅРёСЏ РѕР± РѕС€РёР±РєРµ. РўРѕР»СЊРєРѕ РїРµС‡Р°С‚РЅС‹Р№ ASCII: СЃРѕРѕР±С‰РµРЅРёРµ
+        // РїРѕРїР°РґР°РµС‚ РІ UI, Р° UTF-8 СЃ Р±РёС‚С‹РјРё Р±Р°Р№С‚Р°РјРё РѕС‚СЂРёСЃРѕРІРєР° РѕС‚Р±СЂРѕСЃРёС‚ С†РµР»РёРєРѕРј.
         std::string Quote(std::string_view text)
         {
             constexpr std::size_t MaxLength = 40;
@@ -75,8 +76,8 @@ namespace Core
         }
 
         // ------------------------------------------------------------------
-        // Разбор чисел. std::from_chars не зависит от локали и не принимает
-        // пробелов и '+', а проверка ptr == last отсекает хвост вроде "12abc".
+        // Р Р°Р·Р±РѕСЂ С‡РёСЃРµР». std::from_chars РЅРµ Р·Р°РІРёСЃРёС‚ РѕС‚ Р»РѕРєР°Р»Рё Рё РЅРµ РїСЂРёРЅРёРјР°РµС‚
+        // РїСЂРѕР±РµР»РѕРІ Рё '+', Р° РїСЂРѕРІРµСЂРєР° ptr == last РѕС‚СЃРµРєР°РµС‚ С…РІРѕСЃС‚ РІСЂРѕРґРµ "12abc".
         // ------------------------------------------------------------------
 
         template <typename T>
@@ -90,7 +91,7 @@ namespace Core
             return result.ec == std::errc() && result.ptr == last;
         }
 
-        // from_chars читает "nan" и "inf", но в сцене им не место.
+        // from_chars С‡РёС‚Р°РµС‚ "nan" Рё "inf", РЅРѕ РІ СЃС†РµРЅРµ РёРј РЅРµ РјРµСЃС‚Рѕ.
         bool ParseFloat(std::string_view text, float& value)
         {
             return ParseNumber(text, value) && std::isfinite(value);
@@ -134,7 +135,7 @@ namespace Core
             return true;
         }
 
-        // Делит строку на слова по пробелам и табуляциям.
+        // Р”РµР»РёС‚ СЃС‚СЂРѕРєСѓ РЅР° СЃР»РѕРІР° РїРѕ РїСЂРѕР±РµР»Р°Рј Рё С‚Р°Р±СѓР»СЏС†РёСЏРј.
         void Tokenize(std::string_view line, std::vector<std::string_view>& tokens)
         {
             tokens.clear();
@@ -156,7 +157,7 @@ namespace Core
             }
         }
 
-        // Делит "a,b,c" по запятым. false, если частей не ровно N.
+        // Р”РµР»РёС‚ "a,b,c" РїРѕ Р·Р°РїСЏС‚С‹Рј. false, РµСЃР»Рё С‡Р°СЃС‚РµР№ РЅРµ СЂРѕРІРЅРѕ N.
         template <std::size_t N>
         bool SplitList(std::string_view text, std::array<std::string_view, N>& parts)
         {
@@ -210,7 +211,7 @@ namespace Core
             return true;
         }
 
-        // Если text начинается с prefix, отрезает его и возвращает true.
+        // Р•СЃР»Рё text РЅР°С‡РёРЅР°РµС‚СЃСЏ СЃ prefix, РѕС‚СЂРµР·Р°РµС‚ РµРіРѕ Рё РІРѕР·РІСЂР°С‰Р°РµС‚ true.
         bool ConsumePrefix(std::string_view& text, std::string_view prefix)
         {
             if (text.substr(0, prefix.size()) != prefix)
@@ -229,7 +230,7 @@ namespace Core
             case ShapeType::Triangle:  return "TRIANGLE";
             }
 
-            return nullptr; // значение вне перечисления
+            return nullptr; // Р·РЅР°С‡РµРЅРёРµ РІРЅРµ РїРµСЂРµС‡РёСЃР»РµРЅРёСЏ
         }
 
         bool ParseShape(std::string_view text, ShapeType& shape)
@@ -251,9 +252,9 @@ namespace Core
             return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
         }
 
-        // Одни и те же правила для записи и чтения: что Save записал,
-        // то Load гарантированно прочитает. Возвращает описание проблемы
-        // или nullptr, если с сущностью всё в порядке.
+        // РћРґРЅРё Рё С‚Рµ Р¶Рµ РїСЂР°РІРёР»Р° РґР»СЏ Р·Р°РїРёСЃРё Рё С‡С‚РµРЅРёСЏ: С‡С‚Рѕ Save Р·Р°РїРёСЃР°Р»,
+        // С‚Рѕ Load РіР°СЂР°РЅС‚РёСЂРѕРІР°РЅРЅРѕ РїСЂРѕС‡РёС‚Р°РµС‚. Р’РѕР·РІСЂР°С‰Р°РµС‚ РѕРїРёСЃР°РЅРёРµ РїСЂРѕР±Р»РµРјС‹
+        // РёР»Рё nullptr, РµСЃР»Рё СЃ СЃСѓС‰РЅРѕСЃС‚СЊСЋ РІСЃС‘ РІ РїРѕСЂСЏРґРєРµ.
         const char* FindProblem(const Entity& entity)
         {
             if (!entity.id.IsValid() ||
@@ -282,7 +283,7 @@ namespace Core
         }
 
         // ------------------------------------------------------------------
-        // V4: ENTITY id=... pos=... — ключи в любом порядке, все, кроме id, необязательны.
+        // V4: ENTITY id=... pos=... вЂ” РєР»СЋС‡Рё РІ Р»СЋР±РѕРј РїРѕСЂСЏРґРєРµ, РІСЃРµ, РєСЂРѕРјРµ id, РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅС‹.
         // ------------------------------------------------------------------
 
         enum class EntityKey
@@ -350,7 +351,7 @@ namespace Core
         }
 
         // ------------------------------------------------------------------
-        // Разбор целого файла в переданную (временную) сцену.
+        // Р Р°Р·Р±РѕСЂ С†РµР»РѕРіРѕ С„Р°Р№Р»Р° РІ РїРµСЂРµРґР°РЅРЅСѓСЋ (РІСЂРµРјРµРЅРЅСѓСЋ) СЃС†РµРЅСѓ.
         // ------------------------------------------------------------------
 
         class SceneParser
@@ -392,7 +393,7 @@ namespace Core
             std::size_t m_tileCount = 0;
             std::size_t m_entityCount = 0;
 
-            // V3 не хранил id: выдаём 1, 2, 3... в порядке записей.
+            // V3 РЅРµ С…СЂР°РЅРёР» id: РІС‹РґР°С‘Рј 1, 2, 3... РІ РїРѕСЂСЏРґРєРµ Р·Р°РїРёСЃРµР№.
             std::uint64_t m_nextLegacyId = 1;
 
             bool m_hasEntityCount = false;
@@ -415,7 +416,7 @@ namespace Core
 
         bool SceneParser::Parse(std::string_view text)
         {
-            // Блокнот может поставить в начало файла метку порядка байтов UTF-8.
+            // Р‘Р»РѕРєРЅРѕС‚ РјРѕР¶РµС‚ РїРѕСЃС‚Р°РІРёС‚СЊ РІ РЅР°С‡Р°Р»Рѕ С„Р°Р№Р»Р° РјРµС‚РєСѓ РїРѕСЂСЏРґРєР° Р±Р°Р№С‚РѕРІ UTF-8.
             constexpr std::string_view Bom = "\xEF\xBB\xBF";
 
             if (text.substr(0, Bom.size()) == Bom)
@@ -423,7 +424,7 @@ namespace Core
 
             while (!text.empty())
             {
-                // Следующая строка без '\n' и '\r' (файлы бывают с CRLF).
+                // РЎР»РµРґСѓСЋС‰Р°СЏ СЃС‚СЂРѕРєР° Р±РµР· '\n' Рё '\r' (С„Р°Р№Р»С‹ Р±С‹РІР°СЋС‚ СЃ CRLF).
                 const std::size_t end = text.find('\n');
                 std::string_view line = text.substr(0, end);
 
@@ -460,7 +461,7 @@ namespace Core
                     : ParseEntityV2();
                 else if (record == "ENTITY_COUNT" && m_version == 2)
                     ok = ParseEntityCountV2();
-                else if (record == "END" && m_version == 4)
+                else if (record == "END" && m_version >= 4)
                     ok = ParseEnd();
                 else
                     return Fail("unknown record " + Quote(record));
@@ -474,15 +475,10 @@ namespace Core
 
         bool SceneParser::ParseHeader()
         {
-            if (m_tokens.size() == 1)
-            {
-                if (m_tokens[0] == HeaderV4)
-                    m_version = 4;
-                else if (m_tokens[0] == HeaderV3)
-                    m_version = 3;
-                else if (m_tokens[0] == HeaderV2)
-                    m_version = 2;
-            }
+            if (m_tokens[0] == HeaderV5) m_version = 5;
+            else if (m_tokens[0] == HeaderV4) m_version = 4;
+            else if (m_tokens[0] == HeaderV3) m_version = 3;
+            else if (m_tokens[0] == HeaderV2) m_version = 2;
 
             if (m_version == 0)
             {
@@ -510,8 +506,8 @@ namespace Core
                         " but the file has " + std::to_string(m_entityCount) + " ENTITY records");
             }
 
-            // Без END нельзя отличить обрезанный файл от целого.
-            if (m_version == 4 && !m_seenEnd)
+            // Р‘РµР· END РЅРµР»СЊР·СЏ РѕС‚Р»РёС‡РёС‚СЊ РѕР±СЂРµР·Р°РЅРЅС‹Р№ С„Р°Р№Р» РѕС‚ С†РµР»РѕРіРѕ.
+            if (m_version >= 4 && !m_seenEnd) // рџ‘€ V4 Рё V5
                 return FailFile("missing END record (file is truncated?)");
 
             return true;
@@ -519,25 +515,40 @@ namespace Core
 
         bool SceneParser::ParseTile()
         {
-            if (m_tokens.size() != 6)
-                return Fail("TILE expects 5 values: x y r g b");
-
-            int x = 0;
-            int y = 0;
+            int x = 0, y = 0;
             Color color;
+            TilePattern pattern = TilePattern::Solid;
 
-            if (!ParseNumber(m_tokens[1], x) || !ParseNumber(m_tokens[2], y))
-                return Fail("TILE: cell coordinates must be integers");
+            if (m_version >= 5) {
+                if (m_tokens.size() != 7) // рџ‘€ TILE x y r g b pattern (7 С‚РѕРєРµРЅРѕРІ)
+                    return Fail("TILE expects 6 values: x y r g b pattern");
 
-            if (!ParseColor(m_tokens[3], m_tokens[4], m_tokens[5], color))
-                return Fail("TILE: color components must be integers 0..255");
+                int patInt = 0;
+                if (!ParseNumber(m_tokens[1], x) || !ParseNumber(m_tokens[2], y))
+                    return Fail("TILE: cell coordinates must be integers");
+                if (!ParseColor(m_tokens[3], m_tokens[4], m_tokens[5], color))
+                    return Fail("TILE: color components must be integers 0..255");
+                if (!ParseNumber(m_tokens[6], patInt))
+                    return Fail("TILE: pattern must be an integer");
+
+                pattern = static_cast<TilePattern>(patInt);
+            }
+            else {
+                if (m_tokens.size() != 6) // рџ‘€ TILE x y r g b (6 С‚РѕРєРµРЅРѕРІ)
+                    return Fail("TILE expects 5 values: x y r g b");
+
+                if (!ParseNumber(m_tokens[1], x) || !ParseNumber(m_tokens[2], y))
+                    return Fail("TILE: cell coordinates must be integers");
+                if (!ParseColor(m_tokens[3], m_tokens[4], m_tokens[5], color))
+                    return Fail("TILE: color components must be integers 0..255");
+            }
 
             Tilemap& tilemap = m_scene.GetTilemap();
 
             if (tilemap.IsOccupied(x, y))
                 return Fail("duplicate TILE at (" + std::to_string(x) + ", " + std::to_string(y) + ")");
 
-            tilemap.SetTile(x, y, Tile{ color });
+            tilemap.SetTile(x, y, Tile{ color, pattern }); // рџ‘€ РџРµСЂРµРґР°РµРј РїР°С‚С‚РµСЂРЅ
             ++m_tileCount;
 
             return true;
@@ -673,7 +684,7 @@ namespace Core
             if (!ParseShape(m_tokens[2], entity.shape))
                 return Fail("ENTITY: unknown shape " + Quote(m_tokens[2]));
 
-            // Подряд идут 11 чисел: position(3), rotation(3), scale(3), width, height.
+            // РџРѕРґСЂСЏРґ РёРґСѓС‚ 11 С‡РёСЃРµР»: position(3), rotation(3), scale(3), width, height.
             std::array<float, 11> numbers{};
 
             for (std::size_t i = 0; i < numbers.size(); ++i)
@@ -700,10 +711,10 @@ namespace Core
         }
 
         // ------------------------------------------------------------------
-        // Запись
+        // Р—Р°РїРёСЃСЊ
         // ------------------------------------------------------------------
 
-        // Самое короткое представление, которое читается обратно в то же число.
+        // РЎР°РјРѕРµ РєРѕСЂРѕС‚РєРѕРµ РїСЂРµРґСЃС‚Р°РІР»РµРЅРёРµ, РєРѕС‚РѕСЂРѕРµ С‡РёС‚Р°РµС‚СЃСЏ РѕР±СЂР°С‚РЅРѕ РІ С‚Рѕ Р¶Рµ С‡РёСЃР»Рѕ.
         template <typename T>
         void Append(std::string& out, T value)
         {
@@ -728,9 +739,9 @@ namespace Core
             return v.x == value && v.y == value && v.z == value;
         }
 
-        // Временный файл + переименование: на диске всегда либо старая версия,
-        // либо новая целиком. В MSVC STL rename заменяет существующий файл
-        // (MoveFileExW с MOVEFILE_REPLACE_EXISTING).
+        // Р’СЂРµРјРµРЅРЅС‹Р№ С„Р°Р№Р» + РїРµСЂРµРёРјРµРЅРѕРІР°РЅРёРµ: РЅР° РґРёСЃРєРµ РІСЃРµРіРґР° Р»РёР±Рѕ СЃС‚Р°СЂР°СЏ РІРµСЂСЃРёСЏ,
+        // Р»РёР±Рѕ РЅРѕРІР°СЏ С†РµР»РёРєРѕРј. Р’ MSVC STL rename Р·Р°РјРµРЅСЏРµС‚ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёР№ С„Р°Р№Р»
+        // (MoveFileExW СЃ MOVEFILE_REPLACE_EXISTING).
         bool WriteFileAtomically(
             const std::string& filename,
             const std::string& content,
@@ -817,13 +828,14 @@ namespace Core
         out += HeaderV4;
         out += '\n';
 
-        // Тайлы лежат в unordered_map: сортируем по (y, x), чтобы одна и та же
-        // карта всегда давала один и тот же файл (стабильные диффы, тесты).
+        // РўР°Р№Р»С‹ Р»РµР¶Р°С‚ РІ unordered_map: СЃРѕСЂС‚РёСЂСѓРµРј РїРѕ (y, x), С‡С‚РѕР±С‹ РѕРґРЅР° Рё С‚Р° Р¶Рµ
+        // РєР°СЂС‚Р° РІСЃРµРіРґР° РґР°РІР°Р»Р° РѕРґРёРЅ Рё С‚РѕС‚ Р¶Рµ С„Р°Р№Р» (СЃС‚Р°Р±РёР»СЊРЅС‹Рµ РґРёС„С„С‹, С‚РµСЃС‚С‹).
         struct TileRecord
         {
             int x;
             int y;
             Color color;
+            TilePattern pattern;
         };
 
         const auto& tiles = scene.GetTilemap().GetTiles();
@@ -836,6 +848,7 @@ namespace Core
             TileRecord record{};
             Tilemap::UnpackKey(key, record.x, record.y);
             record.color = tile.color;
+            record.pattern = tile.pattern;
             records.push_back(record);
         }
 
@@ -856,10 +869,12 @@ namespace Core
             Append(out, static_cast<int>(record.color.g));
             out += ' ';
             Append(out, static_cast<int>(record.color.b));
+            out += ' ';
+            Append(out, static_cast<int>(record.pattern));
             out += '\n';
         }
 
-        // Сущности — в порядке сцены: он задаёт порядок отрисовки и выбора мышью.
+        // РЎСѓС‰РЅРѕСЃС‚Рё вЂ” РІ РїРѕСЂСЏРґРєРµ СЃС†РµРЅС‹: РѕРЅ Р·Р°РґР°С‘С‚ РїРѕСЂСЏРґРѕРє РѕС‚СЂРёСЃРѕРІРєРё Рё РІС‹Р±РѕСЂР° РјС‹С€СЊСЋ.
         std::unordered_set<std::uint64_t> ids;
 
         for (const Entity& entity : scene.GetEntities())
@@ -887,7 +902,7 @@ namespace Core
             out += ',';
             Append(out, static_cast<int>(entity.color.b));
 
-            // Остальное пишем только если отличается от значений по умолчанию.
+            // РћСЃС‚Р°Р»СЊРЅРѕРµ РїРёС€РµРј С‚РѕР»СЊРєРѕ РµСЃР»Рё РѕС‚Р»РёС‡Р°РµС‚СЃСЏ РѕС‚ Р·РЅР°С‡РµРЅРёР№ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ.
             if (!IsAll(entity.transform.rotation, 0.0f))
             {
                 out += " rot=";
@@ -933,8 +948,8 @@ namespace Core
         if (!parser.Parse(text))
             return ReportError(error, parser.GetError());
 
-        // Единственное место, где меняется scene. Move-присваивание не бросает
-        // исключений, а у loaded свежий счётчик id: он продолжается с max(id) + 1.
+        // Р•РґРёРЅСЃС‚РІРµРЅРЅРѕРµ РјРµСЃС‚Рѕ, РіРґРµ РјРµРЅСЏРµС‚СЃСЏ scene. Move-РїСЂРёСЃРІР°РёРІР°РЅРёРµ РЅРµ Р±СЂРѕСЃР°РµС‚
+        // РёСЃРєР»СЋС‡РµРЅРёР№, Р° Сѓ loaded СЃРІРµР¶РёР№ СЃС‡С‘С‚С‡РёРє id: РѕРЅ РїСЂРѕРґРѕР»Р¶Р°РµС‚СЃСЏ СЃ max(id) + 1.
         scene = std::move(loaded);
         return true;
     }

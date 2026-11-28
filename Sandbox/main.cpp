@@ -215,7 +215,25 @@ protected:
                 float worldY = cy * CellSize + 5.0f;
                 float size = CellSize - 10.0f;
 
+                // Базовая отрисовка
                 renderer.DrawRect(m_camera, worldX, worldY, size, size, tile.color);
+
+                // Отрисовка паттернов (детализация)
+                if (tile.pattern == Core::TilePattern::Grass) {
+                    // Темно-зеленые травинки (контрастнее)
+                    renderer.DrawRect(m_camera, worldX + 20, worldY + 30, 4, 15, Core::Color(20, 80, 20));
+                    renderer.DrawRect(m_camera, worldX + 50, worldY + 60, 4, 15, Core::Color(20, 80, 20));
+                }
+                else if (tile.pattern == Core::TilePattern::Stone) {
+                    // Темные трещины
+                    renderer.DrawRect(m_camera, worldX + 40, worldY + 10, 3, 40, Core::Color(40, 40, 40));
+                    renderer.DrawRect(m_camera, worldX + 10, worldY + 50, 20, 3, Core::Color(40, 40, 40));
+                }
+                else if (tile.pattern == Core::TilePattern::Water) {
+                    // Светлые блики (волны)
+                    renderer.DrawRect(m_camera, worldX + 15, worldY + 25, 25, 3, Core::Color(120, 120, 255));
+                    renderer.DrawRect(m_camera, worldX + 55, worldY + 65, 25, 3, Core::Color(120, 120, 255));
+                }
             }
 
             // 3. Отрисовка Сущностей (с сортировкой по Y)
@@ -228,6 +246,7 @@ protected:
             // Сортируем: кто выше по экрану (меньше Y), тот рисуется раньше (сзади)
             std::sort(sortedEntities.begin(), sortedEntities.end(),
                 [](const Core::Entity* a, const Core::Entity* b) {
+                    if (a->zIndex != b->zIndex) return a->zIndex < b->zIndex;
                     return a->transform.position.y < b->transform.position.y;
                 });
 
@@ -330,7 +349,7 @@ private:
 
     Kjarn::Editor::EditorHistory m_history;
     Kjarn::Editor::Stroke m_currentStroke;
-
+    Core::TilePattern m_brushPattern = Core::TilePattern::Solid;
 
     enum class EntityType { Player, Crate, Tree };
     EntityType m_selectedEntityType = EntityType::Crate;
@@ -544,11 +563,11 @@ private:
                     // Начало мазка
                     m_isPainting = true;
                     m_currentStroke = {}; // Очищаем историю текущего мазка
-                    m_brushTool.PaintLine(m_scene.GetTilemap(), cellX, cellY, cellX, cellY, paintColor, isErasing, m_currentStroke);
+                    m_brushTool.PaintLine(m_scene.GetTilemap(), cellX, cellY, cellX, cellY, paintColor, m_brushPattern, isErasing, m_currentStroke);
                 }
                 else {
                     // Протяжка
-                    m_brushTool.PaintLine(m_scene.GetTilemap(), m_lastPaintCellX, m_lastPaintCellY, cellX, cellY, paintColor, isErasing, m_currentStroke);
+                    m_brushTool.PaintLine(m_scene.GetTilemap(), m_lastPaintCellX, m_lastPaintCellY, cellX, cellY, paintColor, m_brushPattern, isErasing, m_currentStroke);
                 }
 
                 m_lastPaintCellX = cellX;
@@ -728,7 +747,14 @@ private:
             float by = TopBarHeight + 60.0f;
             if (mx >= bx && mx <= bx + 26.0f && my >= by && my <= by + 26.0f) {
                 m_brushColor = m_paletteColors[i];
-                m_currentTool = EditorTool::Brush; // Авто-переключение на кисть
+                m_currentTool = EditorTool::Brush;
+
+                
+                if (i == 0) m_brushPattern = Core::TilePattern::Stone;
+                else if (i == 1) m_brushPattern = Core::TilePattern::Grass;
+                else if (i == 2) m_brushPattern = Core::TilePattern::Water;
+                else m_brushPattern = Core::TilePattern::Solid;
+
                 return;
             }
         }
@@ -849,6 +875,17 @@ private:
             if (my >= insY + 115.0f && my <= insY + 131.0f) {
                 if (mx >= inspectorX + 80.0f && mx <= inspectorX + 96.0f) { ModifySelectedEntities(0, 0, 0, -step); return; }
                 if (mx >= inspectorX + 145.0f && mx <= inspectorX + 161.0f) { ModifySelectedEntities(0, 0, 0, step); return; }
+            }
+            // Z-Index
+            if (my >= insY + 140.0f && my <= insY + 156.0f) {
+                if (mx >= inspectorX + 80.0f && mx <= inspectorX + 96.0f) {
+                    for (auto id : m_selectedEntityIds) { auto* e = m_scene.FindEntity(id); if (e) e->zIndex--; }
+                    return;
+                }
+                if (mx >= inspectorX + 145.0f && mx <= inspectorX + 161.0f) {
+                    for (auto id : m_selectedEntityIds) { auto* e = m_scene.FindEntity(id); if (e) e->zIndex++; }
+                    return;
+                }
             }
 
             // Чекбокс Is Static
@@ -1182,14 +1219,9 @@ private:
 
             
             // Инструменты
-            m_uiDrawList.AddFillRect({ layout.btnSelect.x, layout.btnSelect.y, layout.btnSelect.w, layout.btnSelect.h }, m_currentTool == EditorTool::Select ? accent : border);
-            m_uiDrawList.AddText({ layout.btnSelect.x + 8.0f, 10.0f }, "Sel (V)", text, 12.0f);
-
-            m_uiDrawList.AddFillRect({ layout.btnBrush.x, layout.btnBrush.y, layout.btnBrush.w, layout.btnBrush.h }, m_currentTool == EditorTool::Brush ? accent : border);
-            m_uiDrawList.AddText({ layout.btnBrush.x + 8.0f, 10.0f }, "Brush (B)", text, 12.0f);
-
-            m_uiDrawList.AddFillRect({ layout.btnEraser.x, layout.btnEraser.y, layout.btnEraser.w, layout.btnEraser.h }, m_currentTool == EditorTool::Eraser ? accent : border);
-            m_uiDrawList.AddText({ layout.btnEraser.x + 5.0f, 10.0f }, "Eraser (E)", text, 12.0f);
+            DrawButton(layout.btnSelect, "Sel (V)", m_currentTool == EditorTool::Select);
+            DrawButton(layout.btnBrush, "Brush (B)", m_currentTool == EditorTool::Brush);
+            DrawButton(layout.btnEraser, "Eraser (E)", m_currentTool == EditorTool::Eraser);
 
             // Фигуры
             m_uiDrawList.AddFillRect({ layout.btnRect.x, layout.btnRect.y, layout.btnRect.w, layout.btnRect.h }, m_currentShapeType == Core::ShapeType::Rectangle ? accent : border);
@@ -1343,6 +1375,7 @@ private:
                         DrawPropertyRow("Y:", selected->transform.position.y, insY + 65.0f, secondaryText);
                         DrawPropertyRow("Width:", selected->width, insY + 90.0f, secondaryText);
                         DrawPropertyRow("Height:", selected->height, insY + 115.0f, secondaryText);
+                        DrawPropertyRow("Z-Index:", selected->zIndex, insY + 140.0f, secondaryText);
                     }
                 }
                 else
@@ -1378,6 +1411,28 @@ private:
             m_uiDrawList.AddText({ 12.0f, height - 18.0f }, !m_selectedEntityIds.empty() ? "OBJECTS SELECTED: " + std::to_string(m_selectedEntityIds.size()) : "READY", accent, 11.0f);
             m_uiDrawList.AddText({ width - 150.0f, height - 18.0f }, "Kjarn Sandbox", secondaryText, 11.0f);
         }
+    }
+
+    // Хелпер для отрисовки кнопок с Hover-эффектом
+    void DrawButton(UIRect rect, const std::string& text, bool isActive) {
+        float mx, my;
+        Core::Input::GetMousePosition(mx, my);
+
+        Kjarn::UI::UIColor bgColor = { 65, 69, 78, 255 }; // Обычный фон (border)
+        if (isActive) bgColor = { 85, 145, 220, 255 };    // Активный (accent)
+        if (rect.Contains(mx, my)) {
+            // Если мышь наведена, делаем цвет светлее на 20%
+            bgColor.r = std::min(255, bgColor.r + 30);
+            bgColor.g = std::min(255, bgColor.g + 30);
+            bgColor.b = std::min(255, bgColor.b + 30);
+        }
+
+        m_uiDrawList.AddFillRect({ rect.x, rect.y, rect.w, rect.h }, bgColor);
+
+        // Центрируем текст (грубо, по 6 пикселей на символ)
+        float textW = text.length() * 6.0f;
+        float textX = rect.x + (rect.w - textW) / 2.0f;
+        m_uiDrawList.AddText({ textX, rect.y + 6.0f }, text, { 220, 223, 230, 255 }, 12.0f);
     }
 
     void ModifySelectedEntities(float dx, float dy, float dw, float dh) {
