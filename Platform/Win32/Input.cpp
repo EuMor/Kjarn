@@ -82,7 +82,13 @@ namespace Core {
         case WM_LBUTTONUP:
             s_Keys[VK_LBUTTON] = false;
             break;
-        
+        case WM_MBUTTONDOWN:
+            s_Keys[VK_MBUTTON] = true;
+            break;
+
+        case WM_MBUTTONUP:
+            s_Keys[VK_MBUTTON] = false;
+            break;
         case WM_KILLFOCUS:
             std::memset(s_Keys, 0, sizeof(s_Keys));
             s_LeftMousePressedThisFrame = false;

@@ -26,6 +26,20 @@ namespace Kjarn::Editor {
             }
         }
 
+        // Рисует прямоугольную область (для инструмента Rect)
+        void PaintRect(Core::Tilemap& tilemap, int x0, int y0, int x1, int y1, Core::Color color, Core::TilePattern pattern, bool isErasing, Stroke& stroke) {
+            int minX = std::min(x0, x1);
+            int maxX = std::max(x0, x1);
+            int minY = std::min(y0, y1);
+            int maxY = std::max(y0, y1);
+
+            for (int x = minX; x <= maxX; ++x) {
+                for (int y = minY; y <= maxY; ++y) {
+                    ApplyBrush(tilemap, x, y, color, pattern, isErasing, stroke);
+                }
+            }
+        }
+
     private:
         void ApplyBrush(Core::Tilemap& tilemap, int x, int y, Core::Color color, Core::TilePattern pattern, bool isErasing, Stroke& stroke) {
             int64_t key = Core::Tilemap::PackKey(x, y);

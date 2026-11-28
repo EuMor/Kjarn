@@ -141,6 +141,7 @@ protected:
         if (Core::Input::IsKeyPressed('B')) m_currentTool = EditorTool::Brush;
         if (Core::Input::IsKeyPressed('E')) m_currentTool = EditorTool::Eraser;
         if (Core::Input::IsKeyPressed('V')) m_currentTool = EditorTool::Select;
+        if (Core::Input::IsKeyPressed('R')) m_currentTool = EditorTool::RectBrush;
 
         if (!m_selectedEntityIds.empty() && Core::Input::IsKeyPressed(VK_DELETE))
         {
@@ -151,28 +152,50 @@ protected:
             BuildHierarchy(); // Обновляем список при удалении
         }
 
+        // --- КАМЕРА: ДВИЖЕНИЕ И ЗУМ ---
         constexpr float cameraSpeed = 500.0f;
+        if (Core::Input::IsKeyDown('W')) m_camera.y -= cameraSpeed * deltaTime / m_camera.zoom;
+        if (Core::Input::IsKeyDown('S')) m_camera.y += cameraSpeed * deltaTime / m_camera.zoom;
+        if (Core::Input::IsKeyDown('A')) m_camera.x -= cameraSpeed * deltaTime / m_camera.zoom;
+        if (Core::Input::IsKeyDown('D')) m_camera.x += cameraSpeed * deltaTime / m_camera.zoom;
 
-        if (Core::Input::IsKeyDown('W'))
-            m_camera.y -= cameraSpeed * deltaTime / m_camera.zoom;
+        // MMB Панорамирование
+        if (Core::Input::IsKeyDown(VK_MBUTTON) && IsMouseOverViewport(mx, my))
+        {
+            if (!m_isPanning) {
+                m_isPanning = true;
+                m_lastMouseX = mx;
+                m_lastMouseY = my;
+            }
+            else {
+                m_camera.x -= (mx - m_lastMouseX) / m_camera.zoom;
+                m_camera.y -= (my - m_lastMouseY) / m_camera.zoom;
+                m_lastMouseX = mx;
+                m_lastMouseY = my;
+            }
+        }
+        else {
+            m_isPanning = false;
+        }
 
-        if (Core::Input::IsKeyDown('S'))
-            m_camera.y += cameraSpeed * deltaTime / m_camera.zoom;
-
-        if (Core::Input::IsKeyDown('A'))
-            m_camera.x -= cameraSpeed * deltaTime / m_camera.zoom;
-
-        if (Core::Input::IsKeyDown('D'))
-            m_camera.x += cameraSpeed * deltaTime / m_camera.zoom;
-
-        const int wheel = Core::Input::GetMouseWheelDelta();
-
+        // Зум к курсору
         if (IsMouseOverViewport(mx, my))
         {
             const int wheel = Core::Input::GetMouseWheelDelta();
-            if (wheel > 0) m_camera.zoom *= 1.1f;
-            if (wheel < 0) m_camera.zoom /= 1.1f;
-            m_camera.zoom = std::clamp(m_camera.zoom, 0.1f, 10.0f);
+            if (wheel != 0) {
+                float oldZoom = m_camera.zoom;
+                if (wheel > 0) m_camera.zoom *= 1.1f;
+                if (wheel < 0) m_camera.zoom /= 1.1f;
+                m_camera.zoom = std::clamp(m_camera.zoom, 0.1f, 10.0f);
+
+                float viewW = (float)GetRenderer().GetWidth();
+                float viewH = (float)GetRenderer().GetHeight();
+                float worldMouseX = (mx - viewW / 2.0f) / oldZoom + m_camera.x;
+                float worldMouseY = (my - viewH / 2.0f) / oldZoom + m_camera.y;
+
+                m_camera.x = worldMouseX - (mx - viewW / 2.0f) / m_camera.zoom;
+                m_camera.y = worldMouseY - (my - viewH / 2.0f) / m_camera.zoom;
+            }
         }
     }
 
@@ -234,6 +257,30 @@ protected:
                     renderer.DrawRect(m_camera, worldX + 15, worldY + 25, 25, 3, Core::Color(120, 120, 255));
                     renderer.DrawRect(m_camera, worldX + 55, worldY + 65, 25, 3, Core::Color(120, 120, 255));
                 }
+            }
+
+            // Превью RectBrush
+            if (m_currentTool == EditorTool::RectBrush && m_isRectPainting) {
+                float mouseX, mouseY;
+                Core::Input::GetMousePosition(mouseX, mouseY);
+                float worldX, worldY;
+                m_camera.ScreenToWorld(mouseX, mouseY, (float)renderer.GetWidth(), (float)renderer.GetHeight(), worldX, worldY);
+
+                int endX = (int)std::floor(worldX / CellSize);
+                int endY = (int)std::floor(worldY / CellSize);
+
+                int minX = std::min(m_rectStartX, endX) * (int)CellSize;
+                int maxX = (std::max(m_rectStartX, endX) + 1) * (int)CellSize;
+                int minY = std::min(m_rectStartY, endY) * (int)CellSize;
+                int maxY = (std::max(m_rectStartY, endY) + 1) * (int)CellSize;
+
+                Core::Color previewColor(85, 145, 220);
+                float t = 3.0f / m_camera.zoom;
+
+                renderer.DrawRect(m_camera, (float)minX, (float)minY, (float)(maxX - minX), t, previewColor);
+                renderer.DrawRect(m_camera, (float)minX, (float)(maxY)-t, (float)(maxX - minX), t, previewColor);
+                renderer.DrawRect(m_camera, (float)minX, (float)minY, t, (float)(maxY - minY), previewColor);
+                renderer.DrawRect(m_camera, (float)(maxX)-t, (float)minY, t, (float)(maxY - minY), previewColor);
             }
 
             // 3. Отрисовка Сущностей (с сортировкой по Y)
@@ -339,13 +386,23 @@ private:
     bool m_isDraggingScrollbar = false;
     float m_scrollbarDragOffsetY = 0.0f;
 
-    enum class EditorTool { Select, Brush, Eraser, PlaceEntity};
+    enum class EditorTool { Select, Brush, Eraser, PlaceEntity, RectBrush};
     EditorTool m_currentTool = EditorTool::Select;
 
     Kjarn::Editor::BrushTool m_brushTool;
     int m_lastPaintCellX = 0;
     int m_lastPaintCellY = 0;
     bool m_isPainting = false;
+
+    // Состояние Rect инструмента
+    bool m_isRectPainting = false;
+    int m_rectStartX = 0;
+    int m_rectStartY = 0;
+    
+    // Для MMB (Middle Mouse Button) панорамирования
+    float m_lastMouseX = 0.0f;
+    float m_lastMouseY = 0.0f;
+    bool m_isPanning = false;
 
     Kjarn::Editor::EditorHistory m_history;
     Kjarn::Editor::Stroke m_currentStroke;
@@ -375,7 +432,7 @@ private:
     // Структура со всеми кнопками верхней панели
     struct TopBarLayout {
         UIRect btnSelect, btnBrush, btnEraser;
-        UIRect btnRect, btnCircle, btnTri;
+        UIRect btnRect, btnCircle, btnTri, btnRectTool;;
         UIRect btnAddBlock, btnAddPlayer;
         UIRect btnPlay;
         UIRect btnNew, btnSave, btnLoad;
@@ -398,6 +455,9 @@ private:
         l.btnRect = { x, y, 50.0f, h }; x += 50.0f + gap;
         l.btnCircle = { x, y, 50.0f, h }; x += 50.0f + gap;
         l.btnTri = { x, y, 50.0f, h }; x += 50.0f + 15.0f;
+
+        // Инструмент Прямоугольник (Рисует тайлы)
+        l.btnRectTool = { x, y, 70.0f, h }; x += 70.0f + 15.0f;
 
         // Создание
         l.btnAddBlock = { x, y, 90.0f, h }; x += 90.0f + gap;
@@ -541,6 +601,33 @@ private:
                 float gridY = std::floor(worldY / CellSize) * CellSize;
 
                 SpawnPrefab(m_selectedEntityType, gridX, gridY);
+            }
+            return;
+        }
+
+        // --- РЕЖИМ ПРЯМОУГОЛЬНИКА (RectBrush) ---
+        if (m_currentTool == EditorTool::RectBrush)
+        {
+            if (Core::Input::IsLeftMouseButtonPressed() && IsMouseOverViewport(mouseX, mouseY))
+            {
+                float worldX, worldY;
+                m_camera.ScreenToWorld(mouseX, mouseY, w, h, worldX, worldY);
+                m_rectStartX = (int)std::floor(worldX / CellSize);
+                m_rectStartY = (int)std::floor(worldY / CellSize);
+                m_isRectPainting = true;
+                m_currentStroke = {};
+            }
+
+            if (m_isRectPainting && !Core::Input::IsKeyDown(VK_LBUTTON))
+            {
+                float worldX, worldY;
+                m_camera.ScreenToWorld(mouseX, mouseY, w, h, worldX, worldY);
+                int endX = (int)std::floor(worldX / CellSize);
+                int endY = (int)std::floor(worldY / CellSize);
+
+                m_brushTool.PaintRect(m_scene.GetTilemap(), m_rectStartX, m_rectStartY, endX, endY, m_brushColor, m_brushPattern, false, m_currentStroke);
+                m_history.Push(m_currentStroke);
+                m_isRectPainting = false;
             }
             return;
         }
@@ -920,6 +1007,8 @@ private:
             if (layout.btnCircle.Contains(mx, my)) m_currentShapeType = Core::ShapeType::Circle;
             if (layout.btnTri.Contains(mx, my)) m_currentShapeType = Core::ShapeType::Triangle;
 
+            if (layout.btnRectTool.Contains(mx, my)) m_currentTool = EditorTool::RectBrush;
+
             if (layout.btnNew.Contains(mx, my)) {
                 m_scene.Clear();
                 m_history = Kjarn::Editor::EditorHistory();
@@ -1222,6 +1311,7 @@ private:
             DrawButton(layout.btnSelect, "Sel (V)", m_currentTool == EditorTool::Select);
             DrawButton(layout.btnBrush, "Brush (B)", m_currentTool == EditorTool::Brush);
             DrawButton(layout.btnEraser, "Eraser (E)", m_currentTool == EditorTool::Eraser);
+            DrawButton(layout.btnRectTool, "Rect (R)", m_currentTool == EditorTool::RectBrush);
 
             // Фигуры
             m_uiDrawList.AddFillRect({ layout.btnRect.x, layout.btnRect.y, layout.btnRect.w, layout.btnRect.h }, m_currentShapeType == Core::ShapeType::Rectangle ? accent : border);
