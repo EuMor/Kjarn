@@ -283,6 +283,8 @@ private:
 
     // Состояния меню создания сетки
     bool m_showStartupMenu = true;
+
+
     int m_inputRadius = 10; // То, что крутим в меню
 
     bool m_isDragging = false;
@@ -738,7 +740,6 @@ private:
         }
 
         // --- ИНСПЕКТОР (чекбокс) ---
-        // (сдвинь проверку чекбокса cbY с 200.0f на TopBarHeight + 250.0f)
 
         // Проверяем, не схватили ли мы ползунок скроллбара
         if (Core::Input::IsLeftMouseButtonPressed() && !m_isDraggingScrollbar)
@@ -805,6 +806,56 @@ private:
             }
         }
         
+        // --- ОБРАБОТКА ИНСПЕКТОРА (Кнопки + / -) ---
+        if (!m_isPlaying && !m_selectedEntityIds.empty())
+        {
+            const float inspectorX = rightPanelX + 12.0f;
+            float insY = TopBarHeight + 200.0f;
+
+            // Шаг изменения (сетка = 10, чтобы плавно двигать)
+            float step = 10.0f;
+            if (Core::Input::IsKeyDown(VK_SHIFT)) step = 1.0f; // Зажали Shift — точная настройка
+
+            // X
+            if (my >= insY + 40.0f && my <= insY + 56.0f) {
+                if (mx >= inspectorX + 80.0f && mx <= inspectorX + 96.0f) { ModifySelectedEntities(-step, 0, 0, 0); return; }
+                if (mx >= inspectorX + 145.0f && mx <= inspectorX + 161.0f) { ModifySelectedEntities(step, 0, 0, 0); return; }
+            }
+            // Y
+            if (my >= insY + 65.0f && my <= insY + 81.0f) {
+                if (mx >= inspectorX + 80.0f && mx <= inspectorX + 96.0f) { ModifySelectedEntities(0, -step, 0, 0); return; }
+                if (mx >= inspectorX + 145.0f && mx <= inspectorX + 161.0f) { ModifySelectedEntities(0, step, 0, 0); return; }
+            }
+            // Width
+            if (my >= insY + 90.0f && my <= insY + 106.0f) {
+                if (mx >= inspectorX + 80.0f && mx <= inspectorX + 96.0f) { ModifySelectedEntities(0, 0, -step, 0); return; }
+                if (mx >= inspectorX + 145.0f && mx <= inspectorX + 161.0f) { ModifySelectedEntities(0, 0, step, 0); return; }
+            }
+            // Height
+            if (my >= insY + 115.0f && my <= insY + 131.0f) {
+                if (mx >= inspectorX + 80.0f && mx <= inspectorX + 96.0f) { ModifySelectedEntities(0, 0, 0, -step); return; }
+                if (mx >= inspectorX + 145.0f && mx <= inspectorX + 161.0f) { ModifySelectedEntities(0, 0, 0, step); return; }
+            }
+
+            // Чекбокс Is Static
+            float cbY = insY + 155.0f;
+            float cbX = inspectorX + 120.0f;
+            if (mx >= cbX && mx <= cbX + 14.0f && my >= cbY && my <= cbY + 14.0f)
+            {
+                bool allStatic = true;
+                for (auto id : m_selectedEntityIds) {
+                    const auto* entity = m_scene.FindEntity(id);
+                    if (entity && !entity->isStatic) { allStatic = false; break; }
+                }
+                const bool newState = !allStatic;
+                for (auto id : m_selectedEntityIds) {
+                    auto* entity = m_scene.FindEntity(id);
+                    if (entity) entity->isStatic = newState;
+                }
+                return;
+            }
+        }
+
         // Если клик был в верхней панели (высота 36), обрабатываем только кнопки UI
         if (my >= 0.0f && my <= TopBarHeight)
         {
@@ -822,6 +873,12 @@ private:
                 m_scene.Clear();
                 m_history = Kjarn::Editor::EditorHistory();
                 BuildHierarchy();
+            }
+            if (layout.btnSave.Contains(mx, my)) {
+                SaveScene("level.kjarn");
+            }
+            if (layout.btnLoad.Contains(mx, my)) {
+                LoadScene("level.kjarn");
             }
 
             // Кнопка Spawn Player (630 - 710)
@@ -1237,7 +1294,7 @@ private:
             m_uiDrawList.AddFillRect({ rightPanelX + 172.0f, ey, 70.0f, 30.0f }, m_selectedEntityType == EntityType::Tree ? accent : border);
             m_uiDrawList.AddText({ rightPanelX + 180.0f, ey + 8.0f }, "Tree", text, 12.0f);
 
-            // 3. Инспектор (сдвигаем ниже)
+            // 3. Инспектор
             m_uiDrawList.AddText({ rightPanelX + 12.0f, TopBarHeight + 170.0f }, "INSPECTOR", text, 11.0f);
             m_uiDrawList.AddLine({ rightPanelX, TopBarHeight + 190.0f }, { rightPanelX + rightPanelWidth, TopBarHeight + 190.0f }, border);
 
@@ -1254,8 +1311,24 @@ private:
                         int gridX = (int)(selected->transform.position.x / CellSize);
                         int gridY = (int)(selected->transform.position.y / CellSize);
                         m_uiDrawList.AddText({ inspectorX, insY }, "Cell (" + std::to_string(gridX) + ", " + std::to_string(gridY) + ")", accent, 14.0f);
-                        m_uiDrawList.AddText({ inspectorX, insY + 40.0f }, "Position X: " + std::to_string((int)selected->transform.position.x), secondaryText, 12.0f);
-                        m_uiDrawList.AddText({ inspectorX, insY + 60.0f }, "Position Y: " + std::to_string((int)selected->transform.position.y), secondaryText, 12.0f);
+
+                        // Рисуем строки свойств
+                        auto DrawPropertyRow = [&](const std::string& label, float val, float y, Kjarn::UI::UIColor col) {
+                            m_uiDrawList.AddText({ inspectorX, y }, label, col, 12.0f);
+                            // Кнопка [-]
+                            m_uiDrawList.AddFillRect({ inspectorX + 80.0f, y - 2.0f, 16.0f, 16.0f }, border);
+                            m_uiDrawList.AddText({ inspectorX + 85.0f, y }, "-", text, 12.0f);
+                            // Значение
+                            m_uiDrawList.AddText({ inspectorX + 105.0f, y }, std::to_string((int)val), secondaryText, 12.0f);
+                            // Кнопка [+]
+                            m_uiDrawList.AddFillRect({ inspectorX + 145.0f, y - 2.0f, 16.0f, 16.0f }, border);
+                            m_uiDrawList.AddText({ inspectorX + 150.0f, y }, "+", text, 12.0f);
+                            };
+
+                        DrawPropertyRow("X:", selected->transform.position.x, insY + 40.0f, secondaryText);
+                        DrawPropertyRow("Y:", selected->transform.position.y, insY + 65.0f, secondaryText);
+                        DrawPropertyRow("Width:", selected->width, insY + 90.0f, secondaryText);
+                        DrawPropertyRow("Height:", selected->height, insY + 115.0f, secondaryText);
                     }
                 }
                 else
@@ -1264,12 +1337,11 @@ private:
                 }
 
                 // ОБЩИЙ ЧЕКБОКС ДЛЯ ВСЕХ ВЫДЕЛЕННЫХ
-                float cbY = insY + 100.0f; // Сдвинули вниз
+                float cbY = insY + 155.0f;
                 m_uiDrawList.AddText({ inspectorX, cbY + 2.0f }, "Is Static (Ground):", text, 12.0f);
 
                 float cbX = inspectorX + 120.0f;
                 float cbSize = 14.0f;
-
                 m_uiDrawList.AddFillRect({ cbX, cbY, cbSize, cbSize }, border);
 
                 bool allStatic = true;
@@ -1277,7 +1349,6 @@ private:
                     auto* e = m_scene.FindEntity(id);
                     if (e && !e->isStatic) { allStatic = false; break; }
                 }
-
                 if (allStatic) {
                     m_uiDrawList.AddFillRect({ cbX + 2.0f, cbY + 2.0f, cbSize - 4.0f, cbSize - 4.0f }, accent);
                 }
@@ -1292,6 +1363,21 @@ private:
             m_uiDrawList.AddLine({ 0.0f, height - BottomBarHeight }, { width, height - BottomBarHeight }, border);
             m_uiDrawList.AddText({ 12.0f, height - 18.0f }, !m_selectedEntityIds.empty() ? "OBJECTS SELECTED: " + std::to_string(m_selectedEntityIds.size()) : "READY", accent, 11.0f);
             m_uiDrawList.AddText({ width - 150.0f, height - 18.0f }, "Kjarn Sandbox", secondaryText, 11.0f);
+        }
+    }
+
+    void ModifySelectedEntities(float dx, float dy, float dw, float dh) {
+        for (auto id : m_selectedEntityIds) {
+            Core::Entity* e = m_scene.FindEntity(id);
+            if (e) {
+                e->transform.position.x += dx;
+                e->transform.position.y += dy;
+                e->width += dw;
+                e->height += dh;
+                // Защита от отрицательных размеров
+                if (e->width < 10.0f) e->width = 10.0f;
+                if (e->height < 10.0f) e->height = 10.0f;
+            }
         }
     }
 
